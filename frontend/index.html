@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Productivity Dashboard — Habit Matrix &amp; Todos</title>
+  <meta name="description" content="A beautiful productivity dashboard to track your daily habits, manage todos, and visualise your progress with analytics rings." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════ HEADER ═══════════════════════════ -->
+<header class="app-header">
+  <div class="header-inner">
+    <div class="brand">
+      <span class="brand-icon">⚡</span>
+      <span class="brand-name">FlowBoard</span>
+    </div>
+    <div class="month-nav">
+      <button id="btn-prev-month" class="nav-btn" aria-label="Previous month">&#8249;</button>
+      <h1 id="month-label" class="month-title">Loading…</h1>
+      <button id="btn-next-month" class="nav-btn" aria-label="Next month">&#8250;</button>
+    </div>
+    <div class="header-actions">
+      <button id="btn-add-habit" class="btn-primary" id="open-habit-modal">+ Habit</button>
+      <div class="streak-badge" id="top-streak-badge">🔥 <span id="top-streak">0</span> day streak</div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════ MAIN LAYOUT ══════════════════════ -->
+<main class="dashboard">
+
+  <!-- ── LEFT COLUMN: Habit Grid ─────────────────────────────────── -->
+  <section class="panel panel-grid" aria-label="Habit Grid">
+    <div class="panel-header">
+      <h2 class="panel-title">Habit Matrix</h2>
+      <p class="panel-subtitle">Click any cell to toggle completion</p>
+    </div>
+
+    <div class="grid-wrapper" id="grid-wrapper">
+      <div class="grid-loading" id="grid-loading">
+        <div class="spinner"></div>
+        <span>Loading habits…</span>
+      </div>
+      <div id="habit-grid-container" class="hidden"></div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="grid-empty" class="empty-state hidden">
+      <div class="empty-icon">🌱</div>
+      <p>No habits yet. Add one to get started!</p>
+    </div>
+  </section>
+
+  <!-- ── RIGHT COLUMN: Analytics + Todos ────────────────────────── -->
+  <aside class="sidebar">
+
+    <!-- Analytics rings -->
+    <section class="panel panel-analytics" aria-label="Progress Analytics">
+      <div class="panel-header">
+        <h2 class="panel-title">Progress Rings</h2>
+        <p class="panel-subtitle">This month's completion</p>
+      </div>
+      <div id="rings-container" class="rings-grid"></div>
+    </section>
+
+    <!-- Todo panel will be attached to the widget now -->
+
+  </aside>
+</main>
+
+<!-- ═══════════════════════════════════════ ADD HABIT MODAL ═════════════════ -->
+<div id="habit-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal-card">
+    <button id="modal-close" class="modal-close" aria-label="Close">✕</button>
+    <h2 id="modal-title" class="modal-title">New Habit</h2>
+    <form id="habit-form" class="habit-form" autocomplete="off">
+      <label class="form-label" for="habit-title-input">Habit Name</label>
+      <input id="habit-title-input" type="text" class="form-input" placeholder="e.g. Morning Workout" required maxlength="60" />
+
+      <label class="form-label" for="habit-color-input">Theme Color</label>
+      <div class="color-picker-row">
+        <input id="habit-color-input" type="color" class="form-color" value="#6366f1" />
+        <div class="color-swatches">
+          <button type="button" class="swatch" style="background:#6366f1" data-color="#6366f1"></button>
+          <button type="button" class="swatch" style="background:#10b981" data-color="#10b981"></button>
+          <button type="button" class="swatch" style="background:#f59e0b" data-color="#f59e0b"></button>
+          <button type="button" class="swatch" style="background:#ef4444" data-color="#ef4444"></button>
+          <button type="button" class="swatch" style="background:#3b82f6" data-color="#3b82f6"></button>
+          <button type="button" class="swatch" style="background:#a855f7" data-color="#a855f7"></button>
+          <button type="button" class="swatch" style="background:#ec4899" data-color="#ec4899"></button>
+          <button type="button" class="swatch" style="background:#14b8a6" data-color="#14b8a6"></button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-primary btn-full">Create Habit</button>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ AUTH LAYOUT ══════════════════════ -->
+<div id="auth-overlay" class="auth-overlay">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-brand">
+        <span class="auth-brand-icon">⚡</span>
+        <span class="auth-brand-name">FlowBoard</span>
+      </div>
+      <h2 id="auth-title">Welcome back</h2>
+      <p id="auth-subtitle">Enter your details to access your dashboard.</p>
+    </div>
+    
+    <form id="auth-form" autocomplete="off">
+      <div class="auth-field">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="hello@example.com" required>
+      </div>
+      <div class="auth-field">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="••••••••" required>
+      </div>
+      <div id="auth-error" class="auth-error hidden"></div>
+      
+      <div style="display: flex; gap: 10px; margin-top: 10px;">
+        <button id="login-btn" type="button" class="btn-primary btn-full btn-auth" style="flex: 1;">Sign In</button>
+        <button id="signup-btn" type="button" class="btn-primary btn-full btn-auth" style="flex: 1; background: #2a2f45; color: #cbd5e1; box-shadow: none;">Sign Up</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- THE TODO CHAT-LIKE WIDGET -->
+<div class="todo-widget-container">
+    <div class="todo-pulse-ring"></div>
+    <button id="todo-toggle-btn" title="Open Todos">✅</button>
+</div>
+
+<!-- THE TODO WINDOW -->
+<div id="todo-window" class="todo-window panel panel-todos">
+  <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+    <div style="display: flex; align-items: center;">
+      <h2 class="panel-title">Todos</h2>
+      <span id="todo-count" class="todo-count-badge">0</span>
+    </div>
+    <button id="todo-close-btn" style="background: none; border: none; color: #64748b; font-size: 16px; cursor: pointer;">✖</button>
+  </div>
+
+  <form id="todo-form" class="todo-add-form" autocomplete="off">
+    <input
+      id="todo-input"
+      type="text"
+      class="todo-input"
+      placeholder="Add a new task…"
+      maxlength="120"
+      required
+    />
+    <button type="submit" class="btn-add-todo" aria-label="Add todo">+</button>
+  </form>
+
+  <ul id="todo-list" class="todo-list" role="list"></ul>
+
+  <div id="todo-empty" class="empty-state hidden">
+    <div class="empty-icon">✅</div>
+    <p>All tasks completed!</p>
+  </div>
+</div>
+
+<!-- THE AI CHAT WIDGET -->
+<div class="chat-widget-container">
+    <div class="pulse-ring"></div>
+    <button id="chat-toggle-btn" title="Open AI Co-Pilot">🤖</button>
+</div>
+
+<!-- THE CHAT WINDOW -->
+<div id="chat-window" class="chat-window">
+    <div class="chat-header">
+        <div class="header-info">
+            <strong>AI Co-Pilot</strong>
+            <span>Always active</span>
+        </div>
+        <button id="chat-close-btn" title="Close chat">✖</button>
+    </div>
+
+    <div id="chat-messages" class="chat-messages">
+        <!-- Home View -->
+        <div id="chat-home-view" class="chat-home-view">
+            <p>👋 Hello! I'm your productivity agent. How can I help?</p>
+            <div class="suggestion-chips">
+                <button class="chip">What are my habits for today?</button>
+                <button class="chip">Add a new task to buy groceries</button>
+                <button class="chip">I just completed the Gym</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-input-area">
+        <input type="text" id="chat-input" placeholder="Type a command..." autocomplete="off" />
+        <button id="mic-btn" title="Click to speak">🎤</button>
+        <button id="send-btn" title="Send message">➤</button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════ TOAST ═══════════════════════════ -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
