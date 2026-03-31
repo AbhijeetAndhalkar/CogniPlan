@@ -31,3 +31,10 @@ node_modules/
 venv/
 __pycache__/
 *.pyc
+
+# Diagnostic / temp files
+diagnose.bat
+diagnose_output.txt
+server_output.log
+server.log
+server_err.log
