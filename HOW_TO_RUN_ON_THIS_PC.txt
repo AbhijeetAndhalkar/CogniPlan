@@ -1,0 +1,32 @@
+=======================================================
+HOW TO RUN THE PRODUCTIVITY DASHBOARD ON YOUR PC 
+=======================================================
+
+Since you are running this from:
+D:\Projects\Tracker
+
+There are two ways to start the app:
+
+OPTION 1: THE EASY WAY (AUTOMATIC)
+----------------------------------
+Just double-click the "START_APP.bat" file in this folder! 
+It will automatically:
+1. Turn on the Python environment
+2. Start the backend server
+3. Open your web browser to http://127.0.0.1:8000
+
+
+OPTION 2: THE MANUAL WAY (IN TERMINAL)
+--------------------------------------
+If you want to start it yourself inside VS Code or PowerShell, just copy and paste these exact lines:
+
+    cd D:\Projects\Tracker\backend
+    ..\.venv\Scripts\python.exe -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
+
+Then open your browser and go to:
+http://127.0.0.1:8000
+
+
+NOTE ABOUT THE FOLDERS:
+--------------------------------------
+We recently had some trouble moving the files around with PowerShell commands. If you still want the professional folder layout (frontend/css, frontend/js, backend/api), you can drag and drop the files manually in your file explorer, but the app works perfectly as-is without moving them!
