@@ -2,7 +2,7 @@
    CogniPlan — Vanilla JS Client (Full Fix Version)
    ═══════════════════════════════════════════════════════════════ */
 
-const API = 'http://127.0.0.1:8000';
+const API = 'https://cogniplan-siaf.onrender.com';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentYear  = new Date().getFullYear();
