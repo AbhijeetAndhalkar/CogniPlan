@@ -109,6 +109,19 @@ def get_habits(db: Session = Depends(get_db)):
     return db.query(models.Habit).all()  # Fetch all habits
 
 
+@app.delete("/habits/{habit_id}")
+def delete_habit(habit_id: int, db: Session = Depends(get_db)):
+    habit = db.query(models.Habit).filter(models.Habit.id == habit_id).first()
+
+    if not habit:
+        raise HTTPException(status_code=404, detail="Habit not found")
+
+    db.delete(habit)
+    db.commit()
+
+    return {"message": f"Habit {habit_id} deleted successfully"}
+
+
 # ==========================================
 # 3. HABIT TRACKING (Checkbox Logic)
 # ==========================================

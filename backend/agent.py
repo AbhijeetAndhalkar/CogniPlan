@@ -70,6 +70,21 @@ def remember_message(user_message: str):
             ]
         )
 
+def create_agent_habit(db: Session, title: str):
+    habit = models.Habit(title=title)
+    db.add(habit)
+    db.commit()
+    db.refresh(habit)
+    return f"Created Habit: {title}"
+
+def delete_agent_habit(db: Session, title: str):
+    habit = db.query(models.Habit).filter(models.Habit.title.ilike(f"%{title}%")).first()
+    if not habit:
+        return f"Could not find habit matching '{title}' to delete"
+    db.delete(habit)
+    db.commit()
+    return f"Deleted habit: {habit.title}"
+
 def create_agent_todo(db: Session, title: str):
     todo = models.Todo(title=title)
     db.add(todo)
@@ -108,6 +123,40 @@ def mark_habit_done(db: Session, habit_title: str, log_date: str):
 
 # JSON Schema for LLM tool selection
 tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "create_agent_habit",
+            "description": "Create a new recurring Habit.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "The title or description of the habit."
+                    }
+                },
+                "required": ["title"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_agent_habit",
+            "description": "Delete an existing recurring Habit.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "The title or description of the habit to delete."
+                    }
+                },
+                "required": ["title"]
+            }
+        }
+    },
     {
         "type": "function",
         "function": {
@@ -187,6 +236,12 @@ def run_dispatcher(user_message: str, db: Session):
             
             if function_name == "create_agent_todo":
                 res = create_agent_todo(db, args.get("title"))
+                results.append(res)
+            elif function_name == "create_agent_habit":
+                res = create_agent_habit(db, args.get("title"))
+                results.append(res)
+            elif function_name == "delete_agent_habit":
+                res = delete_agent_habit(db, args.get("title"))
                 results.append(res)
             elif function_name == "mark_habit_done":
                 res = mark_habit_done(db, args.get("habit_title"), args.get("log_date"))
