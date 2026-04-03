@@ -1,26 +1,27 @@
 import calendar
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # Load environment variables (like JWT secrets) securely from a .env file to avoid exposing sensitive data in the source code.
 
 # Load the hidden variables from the .env file
 load_dotenv()
 
-# Now it securely pulls the secret without showing it in the code!
+# Securely fetch the secret key from environment variables (not hardcoded in code)
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
-from fastapi import FastAPI, Depends, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+
+from fastapi import FastAPI, Depends, HTTPException, Query  # Core FastAPI tools
+from fastapi.middleware.cors import CORSMiddleware  # Allows frontend to communicate with backend
+from fastapi.staticfiles import StaticFiles  # Serve static files (HTML, CSS, JS)
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session  # Used to interact with the database
 from datetime import date
-from typing import List
-from pydantic import BaseModel
+from typing import List  # For defining response types
+from pydantic import BaseModel  # For request/response validation
 
-from database import engine, get_db
-import models, schemas
-import agent
+from database import engine, get_db  # Database connection and session provider
+import models, schemas  # models → DB tables, schemas → data validation layer
+import agent  # Handles AI logic (calls external API like Groq)
 
-# Create tables in the database
+# Create tables in the database if they do not already exist
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Productivity Dashboard API")
@@ -30,23 +31,21 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
-)
+)  # Enable cross-origin requests (frontend ↔ backend communication)
 
-# ── Static file serving (bulletproof absolute-path version) ──────────────────
-# Works no matter which directory uvicorn is launched from.
+# ── Static file serving ──────────────────
+# Ensures frontend works regardless of where the server is started from
 BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
+FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")  # Path to frontend folder
 
-app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")  # Serve frontend files
 
-@app.get("/", include_in_schema=False)
+@app.get("/", include_in_schema=False)  # When user opens the website, return homepage
 def serve_dashboard():
     index_path = os.path.join(FRONTEND_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    # If it fails, tell you exactly where it looked
     return {"error": f"Could not find index.html. Looking here: {index_path}"}
-
 
 
 # ==========================================
@@ -55,40 +54,40 @@ def serve_dashboard():
 
 @app.post("/todos/", response_model=schemas.TodoResponse)
 def create_todo(todo: schemas.TodoCreate, db: Session = Depends(get_db)):
-    db_todo = models.Todo(**todo.model_dump())
-    db.add(db_todo)
-    db.commit()
-    db.refresh(db_todo)
-    return db_todo
+    db_todo = models.Todo(**todo.model_dump())  # Convert request data into DB object
+    db.add(db_todo)  # Add to session
+    db.commit()  # Save to database
+    db.refresh(db_todo)  # Refresh to get updated values (like ID)
+    return db_todo  # Return created todo
+
 
 @app.get("/todos/", response_model=List[schemas.TodoResponse])
 def get_todos(db: Session = Depends(get_db)):
-    return db.query(models.Todo).all()
+    return db.query(models.Todo).all()  # Fetch all todos from database
+
 
 @app.put("/todos/{todo_id}/toggle", response_model=schemas.TodoResponse)
 def toggle_todo(todo_id: int, db: Session = Depends(get_db)):
-    todo = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
+    todo = db.query(models.Todo).filter(models.Todo.id == todo_id).first()  # Find todo by ID
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
 
-    todo.is_completed = not todo.is_completed
+    todo.is_completed = not todo.is_completed  # Toggle completion status
     db.commit()
     db.refresh(todo)
     return todo
 
+
 @app.delete("/todos/{todo_id}")
 def delete_todo(todo_id: int, db: Session = Depends(get_db)):
-    # Find the todo by ID
-    todo = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
-    
-    # If it doesn't exist, return an error
+    todo = db.query(models.Todo).filter(models.Todo.id == todo_id).first()  # Find todo
+
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
-    
-    # Delete it and save changes
-    db.delete(todo)
+
+    db.delete(todo)  # Delete from DB
     db.commit()
-    
+
     return {"message": f"Todo {todo_id} deleted successfully"}
 
 
@@ -98,41 +97,40 @@ def delete_todo(todo_id: int, db: Session = Depends(get_db)):
 
 @app.post("/habits/", response_model=schemas.HabitResponse)
 def create_habit(habit: schemas.HabitCreate, db: Session = Depends(get_db)):
-    db_habit = models.Habit(**habit.model_dump())
+    db_habit = models.Habit(**habit.model_dump())  # Convert request to DB object
     db.add(db_habit)
     db.commit()
     db.refresh(db_habit)
     return db_habit
 
+
 @app.get("/habits/", response_model=List[schemas.HabitResponse])
 def get_habits(db: Session = Depends(get_db)):
-    return db.query(models.Habit).all()
+    return db.query(models.Habit).all()  # Fetch all habits
 
 
 # ==========================================
-# 3. HABIT TRACKING (The Grid Checkboxes)
+# 3. HABIT TRACKING (Checkbox Logic)
 # ==========================================
 
 @app.post("/track/")
 def toggle_habit_log(habit_id: int, log_date: date, db: Session = Depends(get_db)):
     """
-    This endpoint powers the checkboxes in your UI.
-    If a log exists for that day, it flips the status.
-    If it doesn't exist, it creates it and marks it as True (Done).
+    Handles checkbox behavior in UI:
+    - If log exists → toggle True/False
+    - If not → create new log (True)
     """
-    # 1. Check if a log already exists for this exact habit and date
+
     log = db.query(models.HabitLog).filter(
         models.HabitLog.habit_id == habit_id,
         models.HabitLog.date == log_date
     ).first()
 
     if log:
-        # If it exists, flip the boolean (True -> False -> True)
-        log.status = not log.status
+        log.status = not log.status  # Toggle existing status
     else:
-        # If it doesn't exist, create a new record and set to True
         log = models.HabitLog(habit_id=habit_id, date=log_date, status=True)
-        db.add(log)
+        db.add(log)  # Create new log
 
     db.commit()
     db.refresh(log)
@@ -144,81 +142,91 @@ def toggle_habit_log(habit_id: int, log_date: date, db: Session = Depends(get_db
 # 4. ANALYTICS — Habit Matrix (Gap-Fill)
 # ==========================================
 
-def _compute_streak(logs_map: dict, total_days: int, today_day: int) -> int:
-    streak = 0
+def _compute_streak(logs_map: dict, total_days: int, today_day: int) -> int:  # Returns current streak
+    streak = 0  # Initialize streak counter
+
+    # Iterate backward from today to day 1
     for d in range(min(today_day, total_days), 0, -1):
-        if logs_map.get(str(d)):
+        if logs_map.get(str(d)):  # Check if habit was completed (True)
             streak += 1
         else:
-            break
+            break  # Stop when streak breaks
+
     return streak
 
 
-@app.get("/analytics/matrix")
+@app.get("/analytics/matrix")  # API to generate habit calendar matrix
 def get_matrix(
-    year: int = Query(default=None),
-    month: int = Query(default=None),
-    db: Session = Depends(get_db),
+    year: int = Query(default=None),  # Optional query parameter
+    month: int = Query(default=None),  # Optional query parameter
+    db: Session = Depends(get_db),  # Inject DB session
 ):
     """
-    Returns a full month grid of every habit x every day.
-    Missing logs are gap-filled as False so the UI never breaks.
+    Returns full habit calendar:
+    - Fills missing days as False
+    - Calculates streak and completion %
     """
+
     today = date.today()
     year  = year  or today.year
     month = month or today.month
 
     _, days_in_month = calendar.monthrange(year, month)
     day_range  = list(range(1, days_in_month + 1))
-    today_day  = today.day if (today.year == year and today.month == month) else days_in_month
+
+    today_day = today.day if (today.year == year and today.month == month) else days_in_month
 
     habits = (
         db.query(models.Habit)
-        .filter(models.Habit.is_active == True)
-        .order_by(models.Habit.created_at)
+        .filter(models.Habit.is_active == True)  # Only active habits
+        .order_by(models.Habit.created_at)  # Sort by creation
         .all()
     )
 
     month_start = date(year, month, 1)
     month_end   = date(year, month, days_in_month)
+
     all_logs = (
         db.query(models.HabitLog)
         .filter(
             models.HabitLog.date >= month_start,
             models.HabitLog.date <= month_end,
         )
-        .all()
+        .all()  # Fetch logs for this month
     )
 
-    # Index: {habit_id: {"day_str": bool}}
-    log_index = {}
+    log_index = {}  # {habit_id: {day: status}}
     for log in all_logs:
         log_index.setdefault(log.habit_id, {})[str(log.date.day)] = log.status
 
     habit_rows = []
+
     for habit in habits:
         logs_map = {
-            str(d): log_index.get(habit.id, {}).get(str(d), False)
+            str(d): log_index.get(habit.id, {}).get(str(d), False)  # Gap-fill missing days as False
             for d in day_range
         }
-        completed   = sum(1 for v in logs_map.values() if v)
-        pct         = round((completed / today_day) * 100, 1) if today_day else 0.0
-        streak      = _compute_streak(logs_map, days_in_month, today_day)
+
+        completed = sum(1 for v in logs_map.values() if v)  # Count completed days
+
+        pct = round((completed / today_day) * 100, 1) if today_day else 0.0  # Completion %
+
+        streak = _compute_streak(logs_map, days_in_month, today_day)  # Current streak
 
         habit_rows.append({
-            "id":             habit.id,
-            "title":         habit.title,
-            "color_theme":   habit.color_theme,
-            "logs":          logs_map,
-            "streak":        streak,
+            "id": habit.id,
+            "title": habit.title,
+            "color_theme": habit.color_theme,
+            "logs": logs_map,
+            "streak": streak,
             "completion_pct": pct,
         })
 
     return {
-        "year":   year,
-        "month":  month,
-        "days":   day_range,
-        "today":  today.day if (today.year == year and today.month == month) else None,
+        "year": year,
+        "month": month,
+        "days": day_range,
+        "today": today.day if (today.year == year and today.month == month) else None,
         "habits": habit_rows,
     }
 
@@ -228,9 +236,10 @@ def get_matrix(
 # ==========================================
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str  # Defines input format for chat API
+
 
 @app.post("/api/chat")
 def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
-    reply = agent.run_dispatcher(request.message, db)
-    return {"reply": reply}
+    reply = agent.run_dispatcher(request.message, db)  # Send message to AI logic
+    return {"reply": reply}  # Return AI response
