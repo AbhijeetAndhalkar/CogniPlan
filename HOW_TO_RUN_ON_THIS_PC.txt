@@ -1,32 +1,51 @@
-=======================================================
-HOW TO RUN THE PRODUCTIVITY DASHBOARD ON YOUR PC 
-=======================================================
-
-Since you are running this from:
-D:\Projects\Tracker
-
-There are two ways to start the app:
-
+🚀 HOW TO RUN COGNIPLAN (PRODUCTIVITY TRACKER)
+Location: D:\Projects\Tracker
 OPTION 1: THE EASY WAY (AUTOMATIC)
-----------------------------------
-Just double-click the "START_APP.bat" file in this folder! 
-It will automatically:
-1. Turn on the Python environment
-2. Start the backend server
-3. Open your web browser to http://127.0.0.1:8000
+Double-click the START_APP.bat file in the root folder.
+This script is configured to:
 
+Activate the Python Virtual Environment (.venv).
 
-OPTION 2: THE MANUAL WAY (IN TERMINAL)
---------------------------------------
-If you want to start it yourself inside VS Code or PowerShell, just copy and paste these exact lines:
+Start the FastAPI backend server.
 
-    cd D:\Projects\Tracker\backend
-    ..\.venv\Scripts\python.exe -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
+Launch your browser automatically to http://127.0.0.1:8000.
 
-Then open your browser and go to:
-http://127.0.0.1:8000
+OPTION 2: THE MANUAL WAY (VS CODE / POWERSHELL)
+If you prefer running it manually to see the logs and debug, follow these steps:
 
+Open Terminal in the Tracker folder.
 
-NOTE ABOUT THE FOLDERS:
---------------------------------------
-We recently had some trouble moving the files around with PowerShell commands. If you still want the professional folder layout (frontend/css, frontend/js, backend/api), you can drag and drop the files manually in your file explorer, but the app works perfectly as-is without moving them!
+Activate the Environment:
+
+PowerShell
+.\.venv\Scripts\Activate.ps1
+Enter the Backend Directory:
+
+PowerShell
+cd backend
+Start the Server:
+
+PowerShell
+uvicorn main:app --reload
+View the App: Open your browser and go to http://127.0.0.1:8000.
+
+📂 IMPORTANT: FOLDER STRUCTURE
+To ensure the app runs correctly, keep the files organized as follows:
+
+/backend: Contains main.py, models.py, and your .env (connected to Supabase).
+
+/docs: Contains your frontend (index.html, style.css, app.js).
+
+Note: We use the docs folder instead of frontend so the app works both locally and on GitHub Pages.
+
+☁️ DATABASE STATUS
+Provider: Supabase (PostgreSQL)
+
+Connection: Managed via the DATABASE_URL in your backend/.env.
+
+Auto-Sync: Tables are automatically checked/created every time the backend starts.
+
+🛠️ TROUBLESHOOTING
+"ModuleNotFoundError": If you see a missing module (like psycopg2), run pip install -r backend/requirements.txt.
+
+"Port 8000 in use": If the server won't start, close any other Python windows or run uvicorn main:app --reload --port 8001.
