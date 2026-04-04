@@ -39,14 +39,15 @@
   --transition: 0.18s ease;
 }
 
-html { font-size: 16px; scroll-behavior: smooth; }
+html { font-size: 16px; scroll-behavior: smooth; overflow-x: hidden; width: 100%; }
 
 body {
   font-family: var(--font);
   background: var(--bg-base);
   color: var(--text-primary);
   min-height: 100vh;
-  /* Removed overflow-x: hidden; because it breaks position: sticky! */
+  overflow-x: hidden;
+  width: 100%;
   background-image:
     radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99,102,241,.12), transparent),
     radial-gradient(ellipse 60% 40% at 80% 110%, rgba(16,185,129,.08), transparent);
@@ -172,22 +173,30 @@ body {
    DASHBOARD LAYOUT
    ══════════════════════════════════════════════════════════════ */
 .dashboard {
-  max-width: 1600px;
+  width: 95%;
   margin: 0 auto;
-  padding: 1.5rem 2rem 3rem;
-  display: grid;
-  grid-template-columns: 1fr 360px;
+  padding: 1rem 0 3rem;
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
-  align-items: start;
 }
 
-@media (max-width: 1100px) {
-  .dashboard { grid-template-columns: 1fr; }
-  .sidebar { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+@media (min-width: 768px) {
+  .dashboard {
+    width: 90%;
+    display: grid;
+    grid-template-columns: 1fr;
+    padding: 1.5rem 0 3rem;
+  }
 }
-@media (max-width: 680px) {
-  .dashboard { padding: 1rem; }
-  .sidebar { grid-template-columns: 1fr; }
+
+@media (min-width: 1100px) {
+  .dashboard {
+    width: 100%;
+    max-width: 1600px;
+    padding: 1.5rem 2rem 3rem;
+    grid-template-columns: 1fr 360px;
+  }
 }
 
 /* ── Panel ───────────────────────────────────────────────────── */
@@ -222,7 +231,9 @@ body {
 .grid-wrapper {
   overflow-x: auto;
   position: relative;
-  /* Prevent the matrix from creating a block formatting context that kills sticky children */
+  width: 100%;
+  max-width: 100vw;
+  -webkit-overflow-scrolling: touch;
   display: block; 
 }
 
@@ -1208,4 +1219,70 @@ body {
     flex: 1;
     overflow-y: auto;
     padding-bottom: 20px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   USER PROFILE UI
+   ══════════════════════════════════════════════════════════════ */
+.profile-badge {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #14b8a6, #0d9488);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(20, 184, 166, 0.4);
+    transition: transform 0.2s;
+}
+.profile-badge:hover { transform: scale(1.1); }
+
+/* ══════════════════════════════════════════════════════════════
+   MOBILE UI OVERRIDES (Popups, Buttons, Inputs)
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+    .btn-primary, .btn-auth, .btn-add-todo, #btn-logout {
+        padding: 14px 20px !important;
+        min-height: 50px !important;
+        font-size: 16px !important;
+    }
+    .form-input, .todo-input, .auth-field input, #chat-input {
+        padding: 14px 16px !important;
+        font-size: 16px !important;
+    }
+    .modal-card {
+        width: 100% !important;
+        max-width: 90vw !important;
+        padding: 1.5rem !important;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    .auth-card {
+        width: 100% !important;
+        max-width: 90vw !important;
+        padding: 20px !important;
+    }
+    .chat-window {
+        width: 90vw !important;
+        right: 5vw !important;
+        height: 60vh !important;
+        bottom: 90px !important;
+    }
+    .todo-window {
+        width: 90vw !important;
+        left: 5vw !important;
+        height: 60vh !important;
+        bottom: 90px !important;
+    }
+    #todo-toggle-btn, #chat-toggle-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 24px;
+    }
+    .todo-widget-container { bottom: 20px; left: 20px; }
+    .chat-widget-container { bottom: 20px !important; right: 20px !important; }
 }

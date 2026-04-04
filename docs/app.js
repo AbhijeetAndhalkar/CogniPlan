@@ -537,6 +537,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Load the data!
         updateMonthLabel();
         Promise.all([loadMatrix(), loadTodos()]);
+        
+        document.getElementById('profile-badge')?.classList.remove('hidden');
+        loadProfile();
     }
 
     // 2. Login Logic
@@ -569,6 +572,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 updateMonthLabel();
                 Promise.all([loadMatrix(), loadTodos()]);
+                
+                document.getElementById('profile-badge')?.classList.remove('hidden');
+                loadProfile();
             }
         });
     }
@@ -591,4 +597,76 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // ═════════════════════════════════════════════════════════════════════════════
+    // NEW PASSWORD & PROFILE & LOGOUT
+    // ═════════════════════════════════════════════════════════════════════════════
+
+    document.getElementById('forgot-password-link')?.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value.trim();
+        if (!email) return showToast('⚠️ Enter your email first');
+        
+        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        if (error) showToast('⚠️ ' + error.message);
+        else showToast('✅ Password reset email sent!');
+    });
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        localStorage.removeItem('flowboard_auth_token');
+        window.location.reload(); 
+    };
+    
+    document.getElementById('btn-logout')?.addEventListener('click', handleLogout);
+
+    const profileBadge = document.getElementById('profile-badge');
+    const profileModal = document.getElementById('profile-modal');
+    if (profileBadge && profileModal) {
+        profileBadge.addEventListener('click', () => profileModal.classList.remove('hidden'));
+        document.getElementById('profile-close')?.addEventListener('click', () => profileModal.classList.add('hidden'));
+    }
+
+    async function loadProfile() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        if (profile) {
+            document.getElementById('prof-name').value = profile.full_name || '';
+            document.getElementById('prof-age').value = profile.age || '';
+            document.getElementById('prof-bio').value = profile.bio || '';
+            document.getElementById('prof-goal').value = profile.target_goal || '';
+            document.getElementById('prof-about').value = profile.about || '';
+            
+            if (profile.full_name) {
+                document.getElementById('profile-initial').innerText = profile.full_name.charAt(0).toUpperCase();
+            }
+        }
+    }
+
+    document.getElementById('profile-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        const profileData = {
+            id: user.id,
+            full_name: document.getElementById('prof-name').value,
+            age: parseInt(document.getElementById('prof-age').value) || null,
+            bio: document.getElementById('prof-bio').value,
+            target_goal: document.getElementById('prof-goal').value,
+            about: document.getElementById('prof-about').value,
+            updated_at: new Date().toISOString()
+        };
+        
+        const { error } = await supabase.from('profiles').upsert(profileData);
+        if (!error) {
+            showToast('✅ Profile updated');
+            profileModal.classList.add('hidden');
+            loadProfile(); 
+        } else {
+            showToast('⚠️ Could not update profile: ' + error.message);
+        }
+    });
+
 });

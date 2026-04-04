@@ -27,6 +27,7 @@
     <div class="header-actions">
       <button id="btn-add-habit" class="btn-primary" id="open-habit-modal">+ Habit</button>
       <div class="streak-badge" id="top-streak-badge">🔥 <span id="top-streak">0</span> day streak</div>
+      <div id="profile-badge" class="profile-badge hidden"><span id="profile-initial"></span></div>
     </div>
   </div>
 </header>
@@ -102,6 +103,34 @@
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════ PROFILE MODAL ═══════════════════ -->
+<div id="profile-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <button id="profile-close" class="modal-close" aria-label="Close">✕</button>
+    <h2 class="modal-title">Your Profile</h2>
+    <form id="profile-form">
+      <label class="form-label" style="display: block;">Full Name</label>
+      <input type="text" id="prof-name" class="form-input" style="width: 100%;">
+      
+      <label class="form-label" style="margin-top: 1rem; display: block;">Age</label>
+      <input type="number" id="prof-age" class="form-input" style="width: 100%;">
+      
+      <label class="form-label" style="margin-top: 1rem; display: block;">Target Goal</label>
+      <input type="text" id="prof-goal" class="form-input" style="width: 100%;">
+      
+      <label class="form-label" style="margin-top: 1rem; display: block;">Bio</label>
+      <input type="text" id="prof-bio" class="form-input" style="width: 100%;">
+      
+      <label class="form-label" style="margin-top: 1rem; display: block;">About</label>
+      <textarea id="prof-about" class="form-input" rows="3" style="width: 100%; resize: vertical;"></textarea>
+
+      <button type="submit" class="btn-primary btn-full" style="margin-top: 1.5rem;">Save Profile</button>
+    </form>
+    
+    <button id="btn-logout" class="btn-full" style="margin-top: 1rem; background:#ef4444; color:#fff; border:none; border-radius:12px; cursor: pointer; font-weight: 600; padding: .75rem 1.1rem; font-size: .9rem;">Log Out</button>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════ AUTH LAYOUT ══════════════════════ -->
 <div id="auth-overlay" class="auth-overlay">
   <div class="auth-card">
@@ -122,6 +151,9 @@
       <div class="auth-field">
         <label for="password">Password</label>
         <input type="password" id="password" placeholder="••••••••" required>
+      </div>
+      <div class="auth-footer" style="text-align: right; margin-top: 5px;">
+        <a href="#" id="forgot-password-link" style="color: #6366f1; font-size: 13px; text-decoration: none; font-weight: 600;">Forgot Password?</a>
       </div>
       <div id="auth-error" class="auth-error hidden"></div>
       
