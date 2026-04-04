@@ -441,6 +441,42 @@ document.addEventListener('DOMContentLoaded', () => {
         todoToggleBtn.addEventListener('click', () => todoWindow.classList.add('open'));
         todoCloseBtn.addEventListener('click', () => todoWindow.classList.remove('open'));
     }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CREATE HABIT FORM SUBMISSION
+// ═════════════════════════════════════════════════════════════════════════════
+
+const habitForm = document.getElementById('habit-form');
+if (habitForm) {
+    habitForm.addEventListener('submit', async (e) => {
+        e.preventDefault(); // Stop the page from refreshing
+
+        // 1. Get values from the inputs
+        const title = document.getElementById('habit-title-input').value;
+        const color = document.querySelector('input[name="color"]:checked')?.value || '#6366f1';
+
+        if (!title) return;
+
+        try {
+            // 2. Send data to your Render backend
+            await api('POST', '/habits/', { 
+                title: title, 
+                color_theme: color 
+            });
+
+            // 3. Success! Cleanup UI
+            showToast('✅ Habit created!');
+            document.getElementById('habit-modal').classList.add('hidden');
+            habitForm.reset();
+
+            // 4. Refresh the grid so the new habit appears
+            loadMatrix(); 
+        } catch (err) {
+            console.error(err);
+            showToast('⚠️ Failed to create habit');
+        }
+    });
+}
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
