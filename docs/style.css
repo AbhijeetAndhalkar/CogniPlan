@@ -1251,7 +1251,50 @@ body {
 /* ══════════════════════════════════════════════════════════════
    MOBILE UI OVERRIDES (Popups, Buttons, Inputs)
    ══════════════════════════════════════════════════════════════ */
-@media (max-width: 767px) {
+@media (max-width: 768px) {
+    /* 1. Header & Navigation Fixes */
+    .app-header { padding: 1.2rem 1rem 0; height: auto; }
+    .header-inner {
+        height: auto;
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        grid-template-areas:
+            "brand streak profile"
+            "nav nav nav"
+            "add add add";
+        gap: 1.2rem 0.6rem;
+    }
+    .brand { grid-area: brand; }
+    .month-nav { grid-area: nav; justify-content: center; }
+    .header-actions { display: contents; }
+    #btn-add-habit { grid-area: add; width: 100%; margin: 0; }
+    .streak-badge { grid-area: streak; justify-self: flex-end; }
+    #profile-badge { grid-area: profile; }
+
+    /* 2. Font Sizing & Text Truncation */
+    html { font-size: 14px; }
+    .habit-label-cell {
+        white-space: normal !important;
+        min-width: 140px;
+    }
+    .habit-name {
+        max-width: 140px;
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.3;
+    }
+
+    /* 3. Habit Matrix Grid Scaling */
+    .day-header-row th { min-width: 44px; }
+    .habit-cell { min-width: 44px; }
+    .cell-btn { width: 34px; height: 34px; }
+
+    /* Mobile overrides for modals and buttons */
     .btn-primary, .btn-auth, .btn-add-todo, #btn-logout {
         padding: 14px 20px !important;
         min-height: 50px !important;
@@ -1286,10 +1329,12 @@ body {
         bottom: 90px !important;
     }
     #todo-toggle-btn, #chat-toggle-btn {
-        width: 50px;
-        height: 50px;
+        width: 54px;
+        height: 54px;
         font-size: 24px;
     }
-    .todo-widget-container { bottom: 20px; left: 20px; }
-    .chat-widget-container { bottom: 20px !important; right: 20px !important; }
+    
+    /* 4. Floating Action Buttons padding */
+    .todo-widget-container { bottom: 32px; left: 24px; }
+    .chat-widget-container { bottom: 32px !important; right: 24px !important; }
 }
