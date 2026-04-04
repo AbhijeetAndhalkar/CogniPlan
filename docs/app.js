@@ -477,6 +477,41 @@ if (habitForm) {
         }
     });
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CREATE TODO LOGIC
+// ═════════════════════════════════════════════════════════════════════════════
+
+const todoInput = document.getElementById('todo-input');
+const btnAddTodo = document.getElementById('btn-add-todo');
+
+if (btnAddTodo && todoInput) {
+    const handleAddTodo = async () => {
+        const title = todoInput.value.trim();
+        if (!title) return;
+
+        try {
+            // Send the new todo to the backend
+            await api('POST', '/todos/', { title: title });
+            
+            // Clear input and refresh the list
+            todoInput.value = '';
+            showToast('✅ Task added');
+            loadTodos(); 
+        } catch (err) {
+            console.error(err);
+            showToast('⚠️ Failed to add task');
+        }
+    };
+
+    // Trigger on button click
+    btnAddTodo.addEventListener('click', handleAddTodo);
+
+    // Trigger when pressing "Enter" key
+    todoInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleAddTodo();
+    });
+}
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
