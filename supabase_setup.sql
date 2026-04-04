@@ -29,3 +29,33 @@ $$ language plpgsql security definer;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- ========================================================
+-- MULTI-TENANCY DATA ISOLATION (RLS & USER_ID)
+-- ========================================================
+
+-- 1. Add user_id to existing tables
+alter table public.todos add column user_id uuid references auth.users not null;
+alter table public.habits add column user_id uuid references auth.users not null;
+alter table public.habit_logs add column user_id uuid references auth.users not null;
+
+-- 2. Enable Row Level Security
+alter table public.todos enable row level security;
+alter table public.habits enable row level security;
+alter table public.habit_logs enable row level security;
+
+-- 3. Restrict access heavily (Only the logged-in user can access their rows)
+create policy "Users can only select their own todos" on public.todos for select using (auth.uid() = user_id);
+create policy "Users can only insert their own todos" on public.todos for insert with check (auth.uid() = user_id);
+create policy "Users can only update their own todos" on public.todos for update using (auth.uid() = user_id);
+create policy "Users can only delete their own todos" on public.todos for delete using (auth.uid() = user_id);
+
+create policy "Users can only select their own habits" on public.habits for select using (auth.uid() = user_id);
+create policy "Users can only insert their own habits" on public.habits for insert with check (auth.uid() = user_id);
+create policy "Users can only update their own habits" on public.habits for update using (auth.uid() = user_id);
+create policy "Users can only delete their own habits" on public.habits for delete using (auth.uid() = user_id);
+
+create policy "Users can only select their own logs" on public.habit_logs for select using (auth.uid() = user_id);
+create policy "Users can only insert their own logs" on public.habit_logs for insert with check (auth.uid() = user_id);
+create policy "Users can only update their own logs" on public.habit_logs for update using (auth.uid() = user_id);
+create policy "Users can only delete their own logs" on public.habit_logs for delete using (auth.uid() = user_id);

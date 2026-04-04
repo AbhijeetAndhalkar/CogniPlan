@@ -12,6 +12,8 @@ from fastapi import FastAPI, Depends, HTTPException, Query  # Core FastAPI tools
 from fastapi.middleware.cors import CORSMiddleware  # Allows frontend to communicate with backend
 from fastapi.staticfiles import StaticFiles  # Serve static files (HTML, CSS, JS)
 from fastapi.responses import FileResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt
 from sqlalchemy.orm import Session  # Used to interact with the database
 from datetime import date
 from typing import List  # For defining response types
@@ -48,13 +50,29 @@ def serve_dashboard():
     return {"error": f"Could not find index.html. Looking here: {index_path}"}
 
 
+security = HTTPBearer()
+
+def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return user_id
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+
 # ==========================================
 # 1. TODO ENDPOINTS (One-off Tasks)
 # ==========================================
 
 @app.post("/todos/", response_model=schemas.TodoResponse)
-def create_todo(todo: schemas.TodoCreate, db: Session = Depends(get_db)):
-    db_todo = models.Todo(**todo.model_dump())  # Convert request data into DB object
+def create_todo(todo: schemas.TodoCreate, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    db_todo = models.Todo(**todo.model_dump(), user_id=current_user_id)  # Convert request data into DB object
     db.add(db_todo)  # Add to session
     db.commit()  # Save to database
     db.refresh(db_todo)  # Refresh to get updated values (like ID)
@@ -62,13 +80,13 @@ def create_todo(todo: schemas.TodoCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/todos/", response_model=List[schemas.TodoResponse])
-def get_todos(db: Session = Depends(get_db)):
-    return db.query(models.Todo).all()  # Fetch all todos from database
+def get_todos(db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    return db.query(models.Todo).filter(models.Todo.user_id == current_user_id).all()  # Fetch all todos from database
 
 
 @app.put("/todos/{todo_id}/toggle", response_model=schemas.TodoResponse)
-def toggle_todo(todo_id: int, db: Session = Depends(get_db)):
-    todo = db.query(models.Todo).filter(models.Todo.id == todo_id).first()  # Find todo by ID
+def toggle_todo(todo_id: int, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    todo = db.query(models.Todo).filter(models.Todo.id == todo_id, models.Todo.user_id == current_user_id).first()  # Find todo by ID
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
 
@@ -79,8 +97,8 @@ def toggle_todo(todo_id: int, db: Session = Depends(get_db)):
 
 
 @app.delete("/todos/{todo_id}")
-def delete_todo(todo_id: int, db: Session = Depends(get_db)):
-    todo = db.query(models.Todo).filter(models.Todo.id == todo_id).first()  # Find todo
+def delete_todo(todo_id: int, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    todo = db.query(models.Todo).filter(models.Todo.id == todo_id, models.Todo.user_id == current_user_id).first()  # Find todo
 
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
@@ -96,8 +114,8 @@ def delete_todo(todo_id: int, db: Session = Depends(get_db)):
 # ==========================================
 
 @app.post("/habits/", response_model=schemas.HabitResponse)
-def create_habit(habit: schemas.HabitCreate, db: Session = Depends(get_db)):
-    db_habit = models.Habit(**habit.model_dump())  # Convert request to DB object
+def create_habit(habit: schemas.HabitCreate, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    db_habit = models.Habit(**habit.model_dump(), user_id=current_user_id)  # Convert request to DB object
     db.add(db_habit)
     db.commit()
     db.refresh(db_habit)
@@ -105,13 +123,13 @@ def create_habit(habit: schemas.HabitCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/habits/", response_model=List[schemas.HabitResponse])
-def get_habits(db: Session = Depends(get_db)):
-    return db.query(models.Habit).all()  # Fetch all habits
+def get_habits(db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    return db.query(models.Habit).filter(models.Habit.user_id == current_user_id).all()  # Fetch all habits
 
 
 @app.delete("/habits/{habit_id}")
-def delete_habit(habit_id: int, db: Session = Depends(get_db)):
-    habit = db.query(models.Habit).filter(models.Habit.id == habit_id).first()
+def delete_habit(habit_id: int, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    habit = db.query(models.Habit).filter(models.Habit.id == habit_id, models.Habit.user_id == current_user_id).first()
 
     if not habit:
         raise HTTPException(status_code=404, detail="Habit not found")
@@ -127,22 +145,27 @@ def delete_habit(habit_id: int, db: Session = Depends(get_db)):
 # ==========================================
 
 @app.post("/track/")
-def toggle_habit_log(habit_id: int, log_date: date, db: Session = Depends(get_db)):
+def toggle_habit_log(habit_id: int, log_date: date, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
     """
     Handles checkbox behavior in UI:
     - If log exists → toggle True/False
     - If not → create new log (True)
     """
 
+    habit = db.query(models.Habit).filter(models.Habit.id == habit_id, models.Habit.user_id == current_user_id).first()
+    if not habit:
+        raise HTTPException(status_code=403, detail="Not authorized or habit not found")
+
     log = db.query(models.HabitLog).filter(
         models.HabitLog.habit_id == habit_id,
-        models.HabitLog.date == log_date
+        models.HabitLog.date == log_date,
+        models.HabitLog.user_id == current_user_id
     ).first()
 
     if log:
         log.status = not log.status  # Toggle existing status
     else:
-        log = models.HabitLog(habit_id=habit_id, date=log_date, status=True)
+        log = models.HabitLog(habit_id=habit_id, date=log_date, status=True, user_id=current_user_id)
         db.add(log)  # Create new log
 
     db.commit()
@@ -173,6 +196,7 @@ def get_matrix(
     year: int = Query(default=None),  # Optional query parameter
     month: int = Query(default=None),  # Optional query parameter
     db: Session = Depends(get_db),  # Inject DB session
+    current_user_id: str = Depends(get_current_user_id)
 ):
     """
     Returns full habit calendar:
@@ -191,7 +215,7 @@ def get_matrix(
 
     habits = (
         db.query(models.Habit)
-        .filter(models.Habit.is_active == True)  # Only active habits
+        .filter(models.Habit.is_active == True, models.Habit.user_id == current_user_id)  # Only active habits for user
         .order_by(models.Habit.created_at)  # Sort by creation
         .all()
     )
@@ -204,6 +228,7 @@ def get_matrix(
         .filter(
             models.HabitLog.date >= month_start,
             models.HabitLog.date <= month_end,
+            models.HabitLog.user_id == current_user_id
         )
         .all()  # Fetch logs for this month
     )
@@ -253,6 +278,6 @@ class ChatRequest(BaseModel):
 
 
 @app.post("/api/chat")
-def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
-    reply = agent.run_dispatcher(request.message, db)  # Send message to AI logic
+def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    reply = agent.run_dispatcher(request.message, db, current_user_id)  # Send message to AI logic
     return {"reply": reply}  # Return AI response

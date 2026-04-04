@@ -70,31 +70,31 @@ def remember_message(user_message: str):
             ]
         )
 
-def create_agent_habit(db: Session, title: str):
-    habit = models.Habit(title=title)
+def create_agent_habit(db: Session, title: str, user_id: str):
+    habit = models.Habit(title=title, user_id=user_id)
     db.add(habit)
     db.commit()
     db.refresh(habit)
     return f"Created Habit: {title}"
 
-def delete_agent_habit(db: Session, title: str):
-    habit = db.query(models.Habit).filter(models.Habit.title.ilike(f"%{title}%")).first()
+def delete_agent_habit(db: Session, title: str, user_id: str):
+    habit = db.query(models.Habit).filter(models.Habit.title.ilike(f"%{title}%"), models.Habit.user_id == user_id).first()
     if not habit:
         return f"Could not find habit matching '{title}' to delete"
     db.delete(habit)
     db.commit()
     return f"Deleted habit: {habit.title}"
 
-def create_agent_todo(db: Session, title: str):
-    todo = models.Todo(title=title)
+def create_agent_todo(db: Session, title: str, user_id: str):
+    todo = models.Todo(title=title, user_id=user_id)
     db.add(todo)
     db.commit()
     db.refresh(todo)
     return f"Created Todo: {title}"
 
-def mark_habit_done(db: Session, habit_title: str, log_date: str):
+def mark_habit_done(db: Session, habit_title: str, log_date: str, user_id: str):
     # Find habit by name loosely matching user input
-    habit = db.query(models.Habit).filter(models.Habit.title.ilike(f"%{habit_title}%")).first()
+    habit = db.query(models.Habit).filter(models.Habit.title.ilike(f"%{habit_title}%"), models.Habit.user_id == user_id).first()
     if not habit:
         return f"Could not find habit matching '{habit_title}'"
     
@@ -106,14 +106,15 @@ def mark_habit_done(db: Session, habit_title: str, log_date: str):
     
     log = db.query(models.HabitLog).filter(
         models.HabitLog.habit_id == habit.id,
-        models.HabitLog.date == parsed_date
+        models.HabitLog.date == parsed_date,
+        models.HabitLog.user_id == user_id
     ).first()
 
     if log:
         log.status = True
         action_msg = f"Updated habit '{habit.title}' as done for {log_date}."
     else:
-        log = models.HabitLog(habit_id=habit.id, date=parsed_date, status=True)
+        log = models.HabitLog(habit_id=habit.id, date=parsed_date, status=True, user_id=user_id)
         db.add(log)
         action_msg = f"Marked habit '{habit.title}' as done for {log_date}."
         
@@ -197,7 +198,7 @@ tools = [
     }
 ]
 
-def run_dispatcher(user_message: str, db: Session):
+def run_dispatcher(user_message: str, db: Session, user_id: str):
     if not client:
         return "Groq client is not initialized (check API keys in .env)."
         
@@ -235,16 +236,16 @@ def run_dispatcher(user_message: str, db: Session):
             args = json.loads(tool_call.function.arguments)
             
             if function_name == "create_agent_todo":
-                res = create_agent_todo(db, args.get("title"))
+                res = create_agent_todo(db, args.get("title"), user_id)
                 results.append(res)
             elif function_name == "create_agent_habit":
-                res = create_agent_habit(db, args.get("title"))
+                res = create_agent_habit(db, args.get("title"), user_id)
                 results.append(res)
             elif function_name == "delete_agent_habit":
-                res = delete_agent_habit(db, args.get("title"))
+                res = delete_agent_habit(db, args.get("title"), user_id)
                 results.append(res)
             elif function_name == "mark_habit_done":
-                res = mark_habit_done(db, args.get("habit_title"), args.get("log_date"))
+                res = mark_habit_done(db, args.get("habit_title"), args.get("log_date"), user_id)
                 results.append(res)
                 
         # Return summary string
