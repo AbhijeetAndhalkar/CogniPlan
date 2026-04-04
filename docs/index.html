@@ -149,7 +149,7 @@
     <button id="todo-close-btn" style="background: none; border: none; color: #64748b; font-size: 16px; cursor: pointer;">✖</button>
   </div>
 
-  <form id="todo-form" class="todo-add-form" autocomplete="off">
+  <form id="todo-form" class="todo-add-form" autocomplete="off" onsubmit="event.preventDefault();">
     <input
       id="todo-input"
       type="text"
@@ -158,7 +158,7 @@
       maxlength="120"
       required
     />
-    <button type="submit" class="btn-add-todo" aria-label="Add todo">+</button>
+    <button type="button" id="btn-add-todo" class="btn-add-todo" aria-label="Add todo">+</button>
   </form>
 
   <ul id="todo-list" class="todo-list" role="list"></ul>
