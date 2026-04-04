@@ -35,8 +35,8 @@ app.add_middleware(
 
 # ── Static file serving ──────────────────
 # Ensures frontend works regardless of where the server is started from
-BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FRONTEND_DIR = os.path.join(BASE_DIR, "docs")  # Path to frontend folder
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..", "docs"))
 
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")  # Serve frontend files
 
