@@ -83,18 +83,41 @@
       <label class="form-label" for="habit-title-input">Habit Name</label>
       <input id="habit-title-input" type="text" class="form-input" placeholder="e.g. Morning Workout" required maxlength="60" />
 
-      <label class="form-label" for="habit-color-input">Theme Color</label>
+      <label class="form-label">Theme Color</label>
       <div class="color-picker-row">
-        <input id="habit-color-input" type="color" class="form-color" value="#6366f1" />
         <div class="color-swatches">
-          <button type="button" class="swatch" style="background:#6366f1" data-color="#6366f1"></button>
-          <button type="button" class="swatch" style="background:#10b981" data-color="#10b981"></button>
-          <button type="button" class="swatch" style="background:#f59e0b" data-color="#f59e0b"></button>
-          <button type="button" class="swatch" style="background:#ef4444" data-color="#ef4444"></button>
-          <button type="button" class="swatch" style="background:#3b82f6" data-color="#3b82f6"></button>
-          <button type="button" class="swatch" style="background:#a855f7" data-color="#a855f7"></button>
-          <button type="button" class="swatch" style="background:#ec4899" data-color="#ec4899"></button>
-          <button type="button" class="swatch" style="background:#14b8a6" data-color="#14b8a6"></button>
+          <label class="swatch-label">
+            <input type="radio" name="color" value="#6366f1" class="hidden-radio" checked />
+            <div class="swatch" style="background:#6366f1"></div>
+          </label>
+          <label class="swatch-label">
+            <input type="radio" name="color" value="#10b981" class="hidden-radio" />
+            <div class="swatch" style="background:#10b981"></div>
+          </label>
+          <label class="swatch-label">
+            <input type="radio" name="color" value="#f59e0b" class="hidden-radio" />
+            <div class="swatch" style="background:#f59e0b"></div>
+          </label>
+          <label class="swatch-label">
+            <input type="radio" name="color" value="#ef4444" class="hidden-radio" />
+            <div class="swatch" style="background:#ef4444"></div>
+          </label>
+          <label class="swatch-label">
+            <input type="radio" name="color" value="#3b82f6" class="hidden-radio" />
+            <div class="swatch" style="background:#3b82f6"></div>
+          </label>
+          <label class="swatch-label">
+            <input type="radio" name="color" value="#a855f7" class="hidden-radio" />
+            <div class="swatch" style="background:#a855f7"></div>
+          </label>
+          <label class="swatch-label">
+            <input type="radio" name="color" value="#ec4899" class="hidden-radio" />
+            <div class="swatch" style="background:#ec4899"></div>
+          </label>
+          <label class="swatch-label">
+            <input type="radio" name="color" value="#14b8a6" class="hidden-radio" />
+            <div class="swatch" style="background:#14b8a6"></div>
+          </label>
         </div>
       </div>
 
