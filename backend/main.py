@@ -54,7 +54,13 @@ security = HTTPBearer()
 
 def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     token = credentials.credentials
+    
+    # Fallback to ensure "Bearer " is stripped if something weird happened with the header
+    if token.startswith("Bearer "):
+        token = token[7:]
+        
     try:
+        # Note: algorithms=["HS256"] and options={"verify_aud": False} are explicitly included
         payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], options={"verify_aud": False})
         user_id = payload.get("sub")
         if not user_id:
@@ -62,8 +68,10 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(secu
         return user_id
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Could not validate credentials")
+    except jwt.PyJWTError as e:
+        # Include the specific PyJWT error reason in the console and response for easier debugging
+        print(f"[AUTH ERROR] Failed to decode JWT: {str(e)}")
+        raise HTTPException(status_code=401, detail=f"Could not validate credentials: {str(e)}")
 
 
 # ==========================================
