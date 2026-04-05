@@ -4,6 +4,10 @@
 
 const API = 'https://cogniplan-siaf.onrender.com';
 
+const supabaseUrl = 'https://ftzaiphsficsylkntqjw.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0emFpcGhzZmljc3lsa250cWp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4Mzc3MTksImV4cCI6MjA5MDQxMzcxOX0.nK7gwwcQeKQKwlGCS0uxjBhMW12wFIPMaPBU_Mv19yQ';
+const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentYear  = new Date().getFullYear();
 let currentMonth = new Date().getMonth() + 1; 
@@ -16,17 +20,26 @@ const MONTH_NAMES = [
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 async function api(method, path, body) {
-  const opts = {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-  };
+  const { data: { session }, error } = await supabase.auth.getSession();
   
-  // SECURE API FIX: Send the token to FastAPI
-  const token = localStorage.getItem('flowboard_auth_token');
-  if (token) {
-      opts.headers['Authorization'] = `Bearer ${token}`;
+  if (error || !session) {
+      console.warn("API Call Failed: No active session. Please log in.");
+      const authOverlay = document.getElementById('auth-overlay') || document.querySelector('.auth-overlay');
+      if (authOverlay) {
+          authOverlay.style.display = 'flex';
+          authOverlay.classList.remove('hidden');
+      }
+      throw new Error("Unauthorized: No active session token.");
   }
 
+  const opts = {
+    method,
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    },
+  };
+  
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(`${API}${path}`, opts);
   if (!res.ok) throw new Error(`${method} ${path} → ${res.status}`);
@@ -519,9 +532,6 @@ if (btnAddTodo && todoInput) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', () => {
-    const supabaseUrl = 'https://ftzaiphsficsylkntqjw.supabase.co';
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0emFpcGhzZmljc3lsa250cWp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4Mzc3MTksImV4cCI6MjA5MDQxMzcxOX0.nK7gwwcQeKQKwlGCS0uxjBhMW12wFIPMaPBU_Mv19yQ';
-    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
     // 1. REFRESH LOGIC: Check for token immediately
     let authToken = localStorage.getItem('flowboard_auth_token');
