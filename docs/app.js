@@ -2,7 +2,7 @@
    CogniPlan — Vanilla JS Client (Full Fix Version)
    ═══════════════════════════════════════════════════════════════ */
 
-const API = 'https://cogniplan-siaf.onrender.com';
+
 
 const supabaseUrl = 'https://ftzaiphsficsylkntqjw.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0emFpcGhzZmljc3lsa250cWp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4Mzc3MTksImV4cCI6MjA5MDQxMzcxOX0.nK7gwwcQeKQKwlGCS0uxjBhMW12wFIPMaPBU_Mv19yQ';
@@ -19,32 +19,53 @@ const MONTH_NAMES = [
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-async function api(method, path, body) {
-  const { data: { session }, error } = await supabase.auth.getSession();
-  
-  if (error || !session) {
-      console.warn("API Call Failed: No active session. Please log in.");
-      const authOverlay = document.getElementById('auth-overlay') || document.querySelector('.auth-overlay');
-      if (authOverlay) {
-          authOverlay.style.display = 'flex';
-          authOverlay.classList.remove('hidden');
-      }
-      throw new Error("Unauthorized: No active session token.");
-  }
+// ═════════════════════════════════════════════════════════════════════════════
+// CORE API FETCHER (WITH SECURE JWT INJECTION)
+// ═════════════════════════════════════════════════════════════════════════════
+const API_BASE_URL = 'https://cogniplan-siaf.onrender.com'; // Ensure this is your Render URL
 
-  const opts = {
-    method,
-    headers: { 
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`
-    },
-  };
-  
-  if (body !== undefined) opts.body = JSON.stringify(body);
-  const res = await fetch(`${API}${path}`, opts);
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status}`);
-  if (res.status === 204) return null;
-  return res.json();
+async function api(method, endpoint, body = null) {
+    // 1. Ask Supabase for the current logged-in user's token
+    const { data: { session }, error } = await supabase.auth.getSession();
+    
+    // 2. Prepare the standard headers
+    const headers = {
+        'Content-Type': 'application/json'
+    };
+
+    // 3. THE CRITICAL FIX: Attach the token to the header if they are logged in
+    if (session && session.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+    } else {
+        console.warn("⚠️ No active session found. The backend will likely reject this.");
+    }
+
+    // 4. Prepare the fetch options
+    const options = {
+        method: method,
+        headers: headers
+    };
+    
+    if (body) {
+        options.body = JSON.stringify(body);
+    }
+
+    // 5. Send the request to your FastAPI backend
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+        
+        // If the backend still rejects it, throw an error so we can see it in the console
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error("Backend rejected request:", errorData);
+            throw new Error(`API Error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (err) {
+        console.error(`Failed to fetch ${endpoint}:`, err);
+        throw err;
+    }
 }
 
 function showToast(msg, duration = 2200) {
