@@ -778,11 +778,13 @@ document.addEventListener('DOMContentLoaded', () => {
             appendMessage('ai', data.response);
 
             // AUTOMATIC UI UPDATE!
-            // If the AI tells us it added a habit, refresh the matrix instantly!
             if (data.action_taken === "refresh_habits") {
-                if (typeof loadMatrix === 'function') {
-                    loadMatrix(); // Refresh the matrix
-                }
+                if (typeof loadHabits === 'function') loadHabits(); 
+                if (typeof loadMatrix === 'function') loadMatrix(); // Whichever function draws your matrix
+            } 
+            else if (data.action_taken === "refresh_todos") {
+                // Trigger whatever function loads your To-Dos!
+                if (typeof loadTodos === 'function') loadTodos(); 
             }
 
         } catch (error) {

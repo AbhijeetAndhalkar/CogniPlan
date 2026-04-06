@@ -290,37 +290,62 @@ class ChatRequest(BaseModel):
 async def chat_with_ai(
     request: ChatRequest, 
     current_user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db) # We need the database to save the habit!
+    db: Session = Depends(get_db)
 ):
     groq_client = agent.client
     if not groq_client:
         raise HTTPException(status_code=500, detail="AI is offline.")
 
     try:
-        # 1. Define the Toolbox for the AI
+        # 1. Now the AI has TWO tools in its toolbox!
         tools = [
             {
                 "type": "function",
                 "function": {
                     "name": "add_habit",
-                    "description": "Add a new daily habit to the user's matrix tracker.",
+                    "description": "Add a new daily habit to the matrix.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "habit_name": {"type": "string", "description": "The name of the habit (e.g., 'Study 2 hours')"}
+                            "habit_name": {"type": "string", "description": "Name of the habit"}
                         },
                         "required": ["habit_name"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "add_todo",
+                    "description": "Add a new one-time task to the To-Do list.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "todo_text": {"type": "string", "description": "The description of the task"}
+                        },
+                        "required": ["todo_text"]
                     }
                 }
             }
         ]
 
+        # Update the system prompt so it knows the difference AND has personality!
         messages = [
-            {"role": "system", "content": "You are an AI Agent. If the user asks to create or add a habit, you MUST use the add_habit tool. Otherwise, chat normally and concisely."},
+            {
+                "role": "system", 
+                "content": (
+                    "You are CogniPlan's AI Co-Pilot, a highly efficient, friendly productivity assistant. "
+                    "Follow these strict rules:\n"
+                    "1. HABITS: If the user explicitly asks for a daily, ongoing, or recurring action, use the 'add_habit' tool.\n"
+                    "2. TO-DOS: If the user asks for a one-time task, errand, or specific reminder, use the 'add_todo' tool.\n"
+                    "3. AMBIGUITY: If a request is vague (e.g., 'remind me to workout'), DO NOT guess. Politely ask the user: 'Should I add this as a daily habit or a one-time to-do?'\n"
+                    "4. CHATTING: For general conversation, keep your responses extremely brief (1-2 sentences), encouraging, and use emojis."
+                )
+            },
             {"role": "user", "content": request.message}
         ]
+        
 
-        # 2. Call Groq (Using Llama 3.1 which is much smarter with tools!)
         response = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant", 
             messages=messages,
@@ -331,31 +356,36 @@ async def chat_with_ai(
 
         response_message = response.choices[0].message
 
-        # 3. Check if the AI decided to use a tool!
+        # 3. Check which tool the AI decided to use!
         if response_message.tool_calls:
             for tool_call in response_message.tool_calls:
+                
+                # --- IF IT CHOSE TO ADD A HABIT ---
                 if tool_call.function.name == "add_habit":
-                    # Extract what the AI understood (e.g., "Study 2 hours")
                     args = json.loads(tool_call.function.arguments)
                     habit_name = args.get("habit_name")
-
-                    # --- DATABASE MAGIC HAPPENS HERE ---
                     try:
-                        from models import Habit # Make sure your Habit model is imported
-                        new_habit = Habit(title=habit_name, user_id=current_user_id) # Using title (actual DB column) 
+                        from models import Habit
+                        new_habit = Habit(title=habit_name, user_id=current_user_id) # Using 'title' based on your schema!
                         db.add(new_habit)
                         db.commit()
-                        
-                        # Return a special flag to tell the frontend to refresh the matrix!
-                        return {
-                            "response": f"✅ I have successfully added '{habit_name}' to your habits matrix!",
-                            "action_taken": "refresh_habits"
-                        }
-                    except Exception as db_err:
-                        print("DB Error:", db_err)
-                        return {"response": "❌ I tried to add the habit, but hit a database error."}
+                        return {"response": f"✅ Added '{habit_name}' to your Habits!", "action_taken": "refresh_habits"}
+                    except Exception as e:
+                        return {"response": "❌ Database error saving habit."}
 
-        # 4. If no tools were needed, just return the normal chat response
+                # --- IF IT CHOSE TO ADD A TO-DO ---
+                elif tool_call.function.name == "add_todo":
+                    args = json.loads(tool_call.function.arguments)
+                    todo_text = args.get("todo_text")
+                    try:
+                        from models import Todo # Make sure Todo is in your models.py!
+                        new_todo = Todo(title=todo_text, user_id=current_user_id) # Adjust 'title' if your column is named differently
+                        db.add(new_todo)
+                        db.commit()
+                        return {"response": f"✅ Added '{todo_text}' to your To-Do list!", "action_taken": "refresh_todos"}
+                    except Exception as e:
+                        return {"response": "❌ Database error saving to-do."}
+
         return {"response": response_message.content, "action_taken": "none"}
 
     except Exception as e:
