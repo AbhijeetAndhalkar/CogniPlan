@@ -725,3 +725,54 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// AI CO-PILOT CHAT LOGIC
+// ═════════════════════════════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+    
+    // Placeholder function to prevent reference errors; expected to be implemented or provided soon
+    async function sendChatMessage() {
+        if (!chatInput.value.trim()) return;
+        // implementation will go here
+        chatInput.value = '';
+    }
+
+    // Event Listeners for sending
+    sendBtn?.addEventListener('click', sendChatMessage);
+    chatInput?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendChatMessage();
+    });
+
+    // Make the suggestion chips clickable
+    const suggestionChips = document.querySelectorAll('.chip');
+    const homeView = document.getElementById('chat-home-view');
+
+    suggestionChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            // 1. Put the text of the chip into the input box
+            if (chatInput) chatInput.value = chip.textContent;
+            
+            // 2. Hide the suggestion menu so the chat is clean
+            if (homeView) homeView.style.display = 'none';
+            
+            // 3. Automatically click the send button!
+            sendChatMessage();
+        });
+    });
+
+    // Also hide the home view when the user types their first normal message
+    sendBtn?.addEventListener('click', () => {
+        if (homeView && chatInput && chatInput.value.trim() !== '') {
+            homeView.style.display = 'none';
+        }
+    });
+    chatInput?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && homeView && chatInput && chatInput.value.trim() !== '') {
+            homeView.style.display = 'none';
+        }
+    });
+});
