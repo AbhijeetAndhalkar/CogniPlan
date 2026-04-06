@@ -762,192 +762,121 @@ body {
     75%, 100% { transform: scale(1.6); opacity: 0; }
 }
 
-/* --- CHAT WINDOW MAIN CONTAINER --- */
+/* ═════════════════════════════════════════════════════════════════════════════
+   PREMIUM AI CO-PILOT WIDGET UI 
+═════════════════════════════════════════════════════════════════════════════ */
+
+/* The React Dimensions & Smooth Animations */
 .chat-window {
     position: fixed;
-    bottom: 110px;
-    right: 30px;
-    width: 360px;
-    height: 520px;
-    background: #151828; /* Matches dashboard dark background */
-    border: 1px solid #2a2f45;
-    border-radius: 24px;
-    box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+    bottom: 96px; /* 24rem from bottom */
+    right: 24px;  /* 6rem from right */
+    width: 384px; /* Exact width from React (w-96) */
+    height: 600px; /* Exact height from React */
+    background-color: #1e1e2e;
+    border: 1px solid #334155;
+    border-radius: 16px;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    z-index: 9999;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
     
-    /* Framer Motion Style Animation */
-    opacity: 0; 
-    transform: translateY(20px) scale(0.95); 
-    pointer-events: none; 
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    /* Smooth Spring Animation */
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(20px) scale(0.95);
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .chat-window.open {
     opacity: 1;
-    transform: translateY(0) scale(1);
     pointer-events: auto;
+    transform: translateY(0) scale(1);
 }
 
-/* --- HEADER --- */
-.chat-header {
-    background: #1c2136;
-    border-bottom: 1px solid #2a2f45;
-    padding: 16px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.header-info {
-    display: flex;
-    flex-direction: column;
-}
-
-.header-info strong {
-    color: #ffffff;
-    font-size: 16px;
-    letter-spacing: 0.5px;
-}
-
-.header-info span {
-    color: #8b5cf6;
-    font-size: 12px;
-    font-weight: 500;
-}
-
-#chat-close-btn {
-    background: none;
-    border: none;
-    color: #64748b;
-    font-size: 16px;
-    cursor: pointer;
-    transition: color 0.2s;
-}
-
-#chat-close-btn:hover { color: #ffffff; }
-
-/* --- MESSAGES AREA --- */
+/* Chat Messages Area */
 .chat-messages {
-    flex: 1;
-    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    background: #111422;
+    flex-grow: 1;
 }
 
-/* Custom Scrollbar for chat */
-.chat-messages::-webkit-scrollbar { width: 6px; }
-.chat-messages::-webkit-scrollbar-track { background: transparent; }
-.chat-messages::-webkit-scrollbar-thumb { background: #2a2f45; border-radius: 10px; }
-
-/* --- HOME VIEW & CHIPS --- */
-.chat-home-view p {
-    color: #e2e8f0;
-    margin-top: 0;
-    margin-bottom: 16px;
-    font-size: 15px;
-    line-height: 1.4;
-}
-
-.suggestion-chips {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.chip {
-    background: #1c2136;
-    color: #94a3b8;
-    border: 1px solid #2a2f45;
-    padding: 12px 16px;
-    border-radius: 12px;
-    cursor: pointer;
-    text-align: left;
-    font-size: 14px;
-    transition: all 0.2s;
-}
-
-.chip:hover {
-    background: #2a2f45;
-    color: #ffffff;
-    border-color: #8b5cf6;
-    transform: translateY(-1px);
-}
-
-/* --- BUBBLES --- */
+/* User Bubble: Right-aligned, purple */
 .msg-user {
     align-self: flex-end;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    color: white;
+    background-color: #6366f1; 
+    color: #ffffff;
     padding: 12px 16px;
-    border-radius: 16px 16px 4px 16px;
-    font-size: 14px;
+    border-radius: 18px 18px 4px 18px; 
     max-width: 85%;
-    line-height: 1.4;
-    box-shadow: 0 4px 10px rgba(139, 92, 246, 0.2);
+    font-size: 14.5px;
+    line-height: 1.5;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
 }
 
+/* AI Bubble: Left-aligned, dark grey */
 .msg-ai {
     align-self: flex-start;
-    background: #1c2136;
-    color: #e2e8f0;
-    border: 1px solid #2a2f45;
+    background-color: #334155; 
+    color: #f8fafc;
     padding: 12px 16px;
-    border-radius: 16px 16px 16px 4px;
-    font-size: 14px;
+    border-radius: 4px 18px 18px 18px; 
     max-width: 85%;
-    line-height: 1.4;
+    font-size: 14.5px;
+    line-height: 1.5;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
 }
 
-/* --- INPUT AREA --- */
+/* Markdown Formatting */
+.msg-ai p { margin: 0 0 8px 0; }
+.msg-ai p:last-child { margin: 0; }
+.msg-ai ul { margin: 8px 0; padding-left: 20px; list-style-type: disc; }
+.msg-ai li { margin-bottom: 6px; }
+.msg-ai strong { color: #ffffff; font-weight: 600; }
+
+/* The Pill-Shaped Input Area */
 .chat-input-area {
     display: flex;
-    padding: 16px;
-    background: #1c2136;
-    border-top: 1px solid #2a2f45;
     align-items: center;
     gap: 10px;
+    padding: 12px 16px;
+    background-color: #1e1e2e;
+    border-top: 1px solid #334155;
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
 }
 
 #chat-input {
-    flex: 1;
-    padding: 12px 16px;
-    background: #111422;
-    border: 1px solid #2a2f45;
-    color: #ffffff;
-    border-radius: 20px;
-    outline: none;
+    flex-grow: 1;
+    background-color: #0f172a; 
+    border: 1px solid #334155;
+    color: white;
+    padding: 12px 18px;
+    border-radius: 24px;
     font-size: 14px;
+    outline: none;
     transition: border-color 0.2s;
 }
 
-#chat-input::placeholder { color: #64748b; }
-#chat-input:focus { border-color: #8b5cf6; }
+#chat-input:focus { border-color: #6366f1; }
 
-#mic-btn, #send-btn {
-    background: #111422;
-    border: 1px solid #2a2f45;
+#send-btn {
+    background-color: #6366f1;
+    color: white;
+    border: none;
     width: 40px;
     height: 40px;
     border-radius: 50%;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
-    cursor: pointer;
-    color: #94a3b8;
-    transition: all 0.2s;
+    transition: transform 0.2s;
 }
-
-#mic-btn:hover, #send-btn:hover {
-    background: #2a2f45;
-    color: #ffffff;
-}
+#send-btn:hover { transform: scale(1.05); }
 
 #send-btn { color: #8b5cf6; }
 

@@ -476,28 +476,49 @@ document.addEventListener('DOMContentLoaded', () => {
         todoCloseBtn.addEventListener('click', () => todoWindow.classList.remove('open'));
     }
 
-    // Toggle Chat Window (Bulletproof Version)
+    // Toggle Chat Window
     const chatToggleBtn = document.getElementById('chat-toggle-btn');
     const chatCloseBtn = document.getElementById('chat-close-btn');
     const chatWindow = document.getElementById('chat-window');
 
-    if (chatToggleBtn && chatCloseBtn && chatWindow) {
-        // Force the window open using direct inline styles
-        chatToggleBtn.onclick = () => {
-            chatWindow.style.display = 'flex'; // Override any display:none
-            chatWindow.style.opacity = '1';
-            chatWindow.style.pointerEvents = 'auto';
-            chatWindow.style.transform = 'translateY(0)';
-        };
+    // 1. UI State Controller (Click Outside & Toggle)
+    let isChatOpen = false;
 
-        // Force the window closed
-        chatCloseBtn.onclick = () => {
-            chatWindow.style.opacity = '0';
-            chatWindow.style.pointerEvents = 'none';
-            chatWindow.style.transform = 'translateY(20px)';
-            // Wait for the fade animation, then hide it completely
-            setTimeout(() => { chatWindow.style.display = 'none'; }, 300);
-        };
+    function toggleChatState() {
+        isChatOpen = !isChatOpen;
+        if (isChatOpen) {
+            chatWindow.style.display = 'flex';
+            // Tiny timeout allows the browser to render 'flex' before animating opacity
+            setTimeout(() => { chatWindow.classList.add('open'); }, 10);
+        } else {
+            chatWindow.classList.remove('open');
+            setTimeout(() => { chatWindow.style.display = 'none'; }, 300); // Wait for animation to finish
+        }
+    }
+
+    if (chatToggleBtn && chatCloseBtn && chatWindow) {
+        // Toggle when clicking the robot logo
+        chatToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevents document click from immediately firing
+            toggleChatState();
+        });
+
+        // Close when clicking the X button
+        chatCloseBtn.addEventListener('click', () => {
+            if (isChatOpen) toggleChatState();
+        });
+
+        // MAGIC: Close when clicking OUTSIDE the chat window
+        document.addEventListener('click', (e) => {
+            if (isChatOpen && !chatWindow.contains(e.target) && e.target !== chatToggleBtn) {
+                toggleChatState();
+            }
+        });
+        
+        // Prevent clicks inside the window from closing it
+        chatWindow.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
     }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -734,25 +755,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
     
-    // Helper to append messages to the chat window
+    const chatMessages = document.getElementById('chat-messages');
+
+    // 2. The Dynamic Bubble Painter
     function appendMessage(sender, text, id = null) {
-        const chatMessages = document.getElementById('chat-messages');
         if (!chatMessages) return;
         
+        // Remove empty state view if it's there
+        const homeView = document.getElementById('chat-home-view');
+        if (homeView && homeView.style.display !== 'none') {
+            homeView.style.display = 'none';
+        }
+
         const msgDiv = document.createElement('div');
-        msgDiv.className = `chat-message ${sender}-message`;
+        msgDiv.className = sender === 'user' ? 'msg-user' : 'msg-ai';
         if (id) msgDiv.id = id;
         
-        // Simple inline style to differentiate them since we might not have the CSS class defined yet
-        msgDiv.style.margin = '10px 0';
-        msgDiv.style.padding = '10px';
-        msgDiv.style.borderRadius = '8px';
-        msgDiv.style.background = sender === 'user' ? '#6366f1' : '#1e293b';
-        msgDiv.style.color = '#fff';
-        msgDiv.innerHTML = `<p style="margin:0;">${text}</p>`;
-        
+        // Use Markdown if available, otherwise fallback to normal text
+        if (sender === 'ai' && typeof marked !== 'undefined') {
+            msgDiv.innerHTML = marked.parse(text);
+        } else {
+            msgDiv.textContent = text;
+        }
+
         chatMessages.appendChild(msgDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll
     }
 
     async function sendChatMessage() {
