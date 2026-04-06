@@ -476,6 +476,30 @@ document.addEventListener('DOMContentLoaded', () => {
         todoCloseBtn.addEventListener('click', () => todoWindow.classList.remove('open'));
     }
 
+    // Toggle Chat Window (Bulletproof Version)
+    const chatToggleBtn = document.getElementById('chat-toggle-btn');
+    const chatCloseBtn = document.getElementById('chat-close-btn');
+    const chatWindow = document.getElementById('chat-window');
+
+    if (chatToggleBtn && chatCloseBtn && chatWindow) {
+        // Force the window open using direct inline styles
+        chatToggleBtn.onclick = () => {
+            chatWindow.style.display = 'flex'; // Override any display:none
+            chatWindow.style.opacity = '1';
+            chatWindow.style.pointerEvents = 'auto';
+            chatWindow.style.transform = 'translateY(0)';
+        };
+
+        // Force the window closed
+        chatCloseBtn.onclick = () => {
+            chatWindow.style.opacity = '0';
+            chatWindow.style.pointerEvents = 'none';
+            chatWindow.style.transform = 'translateY(20px)';
+            // Wait for the fade animation, then hide it completely
+            setTimeout(() => { chatWindow.style.display = 'none'; }, 300);
+        };
+    }
+
 // ═════════════════════════════════════════════════════════════════════════════
 // CREATE HABIT FORM SUBMISSION
 // ═════════════════════════════════════════════════════════════════════════════
