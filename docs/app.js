@@ -734,11 +734,63 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
     
-    // Placeholder function to prevent reference errors; expected to be implemented or provided soon
+    // Helper to append messages to the chat window
+    function appendMessage(sender, text, id = null) {
+        const chatMessages = document.getElementById('chat-messages');
+        if (!chatMessages) return;
+        
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `chat-message ${sender}-message`;
+        if (id) msgDiv.id = id;
+        
+        // Simple inline style to differentiate them since we might not have the CSS class defined yet
+        msgDiv.style.margin = '10px 0';
+        msgDiv.style.padding = '10px';
+        msgDiv.style.borderRadius = '8px';
+        msgDiv.style.background = sender === 'user' ? '#6366f1' : '#1e293b';
+        msgDiv.style.color = '#fff';
+        msgDiv.innerHTML = `<p style="margin:0;">${text}</p>`;
+        
+        chatMessages.appendChild(msgDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
     async function sendChatMessage() {
-        if (!chatInput.value.trim()) return;
-        // implementation will go here
+        const text = chatInput.value.trim();
+        if (!text) return;
+        
+        // Add user message to UI
+        appendMessage('user', text);
         chatInput.value = '';
+        
+        // Add a temporary loading message for the AI
+        const loadingId = 'loading-' + Date.now();
+        appendMessage('ai', '...', loadingId);
+
+        // Call your Render backend!
+        try {
+            const data = await api('POST', '/api/chat', { message: text });
+            
+            const loadingEl = document.getElementById(loadingId);
+            if (loadingEl) loadingEl.remove();
+            
+            // Show AI response
+            appendMessage('ai', data.response);
+
+            // AUTOMATIC UI UPDATE!
+            // If the AI tells us it added a habit, refresh the matrix instantly!
+            if (data.action_taken === "refresh_habits") {
+                if (typeof loadMatrix === 'function') {
+                    loadMatrix(); // Refresh the matrix
+                }
+            }
+
+        } catch (error) {
+            const loadingEl = document.getElementById(loadingId);
+            if (loadingEl) loadingEl.remove();
+            appendMessage('ai', '❌ Error connecting to AI. Is the server awake?');
+            console.error("AI Fetch Error:", error);
+        }
     }
 
     // Event Listeners for sending

@@ -1,5 +1,6 @@
 import calendar
 import os
+import json
 from dotenv import load_dotenv  # Load environment variables (like JWT secrets) securely from a .env file to avoid exposing sensitive data in the source code.
 
 # Load the hidden variables from the .env file
@@ -286,6 +287,77 @@ class ChatRequest(BaseModel):
 
 
 @app.post("/api/chat")
-def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
-    reply = agent.run_dispatcher(request.message, db, current_user_id)  # Send message to AI logic
-    return {"reply": reply}  # Return AI response
+async def chat_with_ai(
+    request: ChatRequest, 
+    current_user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db) # We need the database to save the habit!
+):
+    groq_client = agent.client
+    if not groq_client:
+        raise HTTPException(status_code=500, detail="AI is offline.")
+
+    try:
+        # 1. Define the Toolbox for the AI
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "add_habit",
+                    "description": "Add a new daily habit to the user's matrix tracker.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "habit_name": {"type": "string", "description": "The name of the habit (e.g., 'Study 2 hours')"}
+                        },
+                        "required": ["habit_name"]
+                    }
+                }
+            }
+        ]
+
+        messages = [
+            {"role": "system", "content": "You are an AI Agent. If the user asks to create or add a habit, you MUST use the add_habit tool. Otherwise, chat normally and concisely."},
+            {"role": "user", "content": request.message}
+        ]
+
+        # 2. Call Groq (Using Llama 3.1 which is much smarter with tools!)
+        response = groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant", 
+            messages=messages,
+            tools=tools,
+            tool_choice="auto",
+            temperature=0.3
+        )
+
+        response_message = response.choices[0].message
+
+        # 3. Check if the AI decided to use a tool!
+        if response_message.tool_calls:
+            for tool_call in response_message.tool_calls:
+                if tool_call.function.name == "add_habit":
+                    # Extract what the AI understood (e.g., "Study 2 hours")
+                    args = json.loads(tool_call.function.arguments)
+                    habit_name = args.get("habit_name")
+
+                    # --- DATABASE MAGIC HAPPENS HERE ---
+                    try:
+                        from models import Habit # Make sure your Habit model is imported
+                        new_habit = Habit(title=habit_name, user_id=current_user_id) # Using title (actual DB column) 
+                        db.add(new_habit)
+                        db.commit()
+                        
+                        # Return a special flag to tell the frontend to refresh the matrix!
+                        return {
+                            "response": f"✅ I have successfully added '{habit_name}' to your habits matrix!",
+                            "action_taken": "refresh_habits"
+                        }
+                    except Exception as db_err:
+                        print("DB Error:", db_err)
+                        return {"response": "❌ I tried to add the habit, but hit a database error."}
+
+        # 4. If no tools were needed, just return the normal chat response
+        return {"response": response_message.content, "action_taken": "none"}
+
+    except Exception as e:
+        print(f"[AI ERROR] {str(e)}")
+        raise HTTPException(status_code=500, detail="AI encountered an error.")
