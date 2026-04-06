@@ -344,7 +344,7 @@ async def chat_with_ai(
             },
             {"role": "user", "content": request.message}
         ]
-        
+
 
         response = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant", 
