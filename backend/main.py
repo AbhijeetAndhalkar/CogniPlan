@@ -297,18 +297,16 @@ async def chat_with_ai(
         raise HTTPException(status_code=500, detail="AI is offline.")
 
     try:
-        # 1. Now the AI has TWO tools in its toolbox!
+        # 1. THE TOOLBOX (Now with "eyes" to read data!)
         tools = [
             {
                 "type": "function",
                 "function": {
                     "name": "add_habit",
-                    "description": "Add a new daily habit to the matrix.",
+                    "description": "Add a new daily habit.",
                     "parameters": {
                         "type": "object",
-                        "properties": {
-                            "habit_name": {"type": "string", "description": "Name of the habit"}
-                        },
+                        "properties": {"habit_name": {"type": "string"}},
                         "required": ["habit_name"]
                     }
                 }
@@ -317,34 +315,47 @@ async def chat_with_ai(
                 "type": "function",
                 "function": {
                     "name": "add_todo",
-                    "description": "Add a new one-time task to the To-Do list.",
+                    "description": "Add a one-time task.",
                     "parameters": {
                         "type": "object",
-                        "properties": {
-                            "todo_text": {"type": "string", "description": "The description of the task"}
-                        },
+                        "properties": {"todo_text": {"type": "string"}},
                         "required": ["todo_text"]
                     }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_habits",
+                    "description": "Get a list of the user's current habits.",
+                    "parameters": {"type": "object", "properties": {}}
                 }
             }
         ]
 
-        # Update the system prompt so it knows the difference AND has personality!
+      # 2. ADVANCED PERSONA & INSTRUCTIONS
         messages = [
             {
                 "role": "system", 
                 "content": (
-                    "You are CogniPlan's AI Co-Pilot, a highly efficient, friendly productivity assistant. "
-                    "Follow these strict rules:\n"
-                    "1. HABITS: If the user explicitly asks for a daily, ongoing, or recurring action, use the 'add_habit' tool.\n"
-                    "2. TO-DOS: If the user asks for a one-time task, errand, or specific reminder, use the 'add_todo' tool.\n"
-                    "3. AMBIGUITY: If a request is vague (e.g., 'remind me to workout'), DO NOT guess. Politely ask the user: 'Should I add this as a daily habit or a one-time to-do?'\n"
-                    "4. CHATTING: For general conversation, keep your responses extremely brief (1-2 sentences), encouraging, and use emojis."
+                    "You are CogniPlan's AI Co-Pilot, an incredibly smart, friendly, and human-like productivity coach. "
+                    "You help the user manage their time, build habits, and crush their goals.\n\n"
+                    "### YOUR BEHAVIOR & TONE:\n"
+                    "- Speak like a supportive human coach. Be encouraging, empathetic, and conversational.\n"
+                    "- Keep your responses concise (1-3 short sentences) because you live in a small floating chat widget.\n"
+                    "- Use emojis naturally to feel human, and use Markdown (bolding, bullet points) to make advice easy to read.\n\n"
+                    "### TOOL USAGE LOGIC (THINK BEFORE ACTING):\n"
+                    "1. HABITS (Recurring): If the user wants to build a daily routine (e.g., 'I want to start reading', 'Drink more water'), use 'add_habit'.\n"
+                    "2. TO-DOS (One-time): If the user mentions a specific chore or errand (e.g., 'Call mom tomorrow', 'Buy groceries'), use 'add_todo'.\n"
+                    "3. CHECKING STATUS: If the user asks 'What are my habits?', 'What do I have to do?', or 'Show my matrix', use 'get_habits'.\n"
+                    "4. GENERAL CHAT: If the user just says 'Hi', asks for advice ('How do I stop procrastinating?'), or is just venting, DO NOT use any tools. Just reply with helpful, conversational text.\n\n"
+                    "### STRICT BOUNDARIES:\n"
+                    "- NEVER guess. If a request is vague (e.g., 'remind me to workout'), politely ask: 'Should I add this as a daily habit or a one-time to-do?'\n"
+                    "- NEVER invent tools. If you don't have a tool for it, just talk normally.\n"
                 )
             },
             {"role": "user", "content": request.message}
         ]
-
 
         response = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant", 
@@ -356,38 +367,53 @@ async def chat_with_ai(
 
         response_message = response.choices[0].message
 
-        # 3. Check which tool the AI decided to use!
+        # 3. BULLETPROOF TOOL HANDLER
         if response_message.tool_calls:
             for tool_call in response_message.tool_calls:
-                
-                # --- IF IT CHOSE TO ADD A HABIT ---
+                # Safety net: If AI sends bad JSON, don't crash, just ignore arguments
+                try:
+                    args = json.loads(tool_call.function.arguments)
+                except Exception:
+                    args = {}
+
+                # --- ADD HABIT ---
                 if tool_call.function.name == "add_habit":
-                    args = json.loads(tool_call.function.arguments)
-                    habit_name = args.get("habit_name")
-                    try:
-                        from models import Habit
-                        new_habit = Habit(title=habit_name, user_id=current_user_id) # Using 'title' based on your schema!
-                        db.add(new_habit)
-                        db.commit()
-                        return {"response": f"✅ Added '{habit_name}' to your Habits!", "action_taken": "refresh_habits"}
-                    except Exception as e:
-                        return {"response": "❌ Database error saving habit."}
+                    habit_name = args.get("habit_name", "Unknown Habit")
+                    from models import Habit
+                    new_habit = Habit(title=habit_name, user_id=current_user_id)
+                    db.add(new_habit)
+                    db.commit()
+                    return {"response": f"✅ Added '{habit_name}' to your Habits!", "action_taken": "refresh_habits"}
 
-                # --- IF IT CHOSE TO ADD A TO-DO ---
+                # --- ADD TO-DO ---
                 elif tool_call.function.name == "add_todo":
-                    args = json.loads(tool_call.function.arguments)
-                    todo_text = args.get("todo_text")
-                    try:
-                        from models import Todo # Make sure Todo is in your models.py!
-                        new_todo = Todo(title=todo_text, user_id=current_user_id) # Adjust 'title' if your column is named differently
-                        db.add(new_todo)
-                        db.commit()
-                        return {"response": f"✅ Added '{todo_text}' to your To-Do list!", "action_taken": "refresh_todos"}
-                    except Exception as e:
-                        return {"response": "❌ Database error saving to-do."}
+                    todo_text = args.get("todo_text", "Unknown Task")
+                    from models import Todo
+                    new_todo = Todo(title=todo_text, user_id=current_user_id)
+                    db.add(new_todo)
+                    db.commit()
+                    return {"response": f"✅ Added '{todo_text}' to your To-Do list!", "action_taken": "refresh_todos"}
 
-        return {"response": response_message.content, "action_taken": "none"}
+                # --- READ HABITS (The new eyes!) ---
+                elif tool_call.function.name == "get_habits":
+                    from models import Habit
+                    habits = db.query(Habit).filter(Habit.user_id == current_user_id).all()
+                    
+                    if not habits:
+                        return {"response": "You don't have any habits set up yet! Want me to add one?", "action_taken": "none"}
+                    
+                    # Format the list nicely in Markdown
+                    habit_list = "\n".join([f"• **{h.title}**" for h in habits])
+                    return {"response": f"Here are your current habits:\n\n{habit_list}", "action_taken": "none"}
+
+        # 4. SAFE FALLBACK
+        # If the AI didn't use a tool but also forgot to write text, provide a fallback to prevent UI errors
+        final_text = response_message.content if response_message.content else "I processed your request!"
+        return {"response": final_text, "action_taken": "none"}
 
     except Exception as e:
-        print(f"[AI ERROR] {str(e)}")
-        raise HTTPException(status_code=500, detail="AI encountered an error.")
+        # This will print the EXACT error line in your Render logs to help us debug future issues
+        import traceback
+        traceback.print_exc()
+        print(f"[AI ERROR DETAILED] {str(e)}")
+        raise HTTPException(status_code=500, detail=f"AI encountered an error: {str(e)}")
