@@ -4,6 +4,9 @@
 
 
 
+// Helper function to pause execution (used for waking up the server)
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 const supabaseUrl = 'https://ftzaiphsficsylkntqjw.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0emFpcGhzZmljc3lsa250cWp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4Mzc3MTksImV4cCI6MjA5MDQxMzcxOX0.nK7gwwcQeKQKwlGCS0uxjBhMW12wFIPMaPBU_Mv19yQ';
 var supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
@@ -85,7 +88,7 @@ function padDate(year, month, day) {
 // HABIT GRID
 // ═════════════════════════════════════════════════════════════════════════════
 
-async function loadMatrix() {
+async function loadMatrix(maxRetries = 12) {
   const loading   = document.getElementById('grid-loading');
   const container = document.getElementById('habit-grid-container');
   const empty     = document.getElementById('grid-empty');
@@ -94,17 +97,46 @@ async function loadMatrix() {
   if(container) container.classList.add('hidden');
   if(empty) empty.classList.add('hidden');
 
-  try {
-    const data = await api('GET', `/analytics/matrix?year=${currentYear}&month=${currentMonth}`);
-    renderGrid(data);
-    renderRings(data);
-    updateMonthLabel();
-    updateTopStreak(data);
-  } catch (e) {
-    console.error(e);
-    showToast('⚠️ Could not load habit matrix');
-  } finally {
-    if(loading) loading.classList.add('hidden');
+  // THE SMART RETRY LOOP
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Update the loading screen to show progress
+        if (loading) {
+            loading.innerHTML = `
+                <div class="spinner" style="margin: 0 auto 12px;"></div>
+                <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                    <span style="font-weight:600; color:#f8fafc; font-size: 15px;">Waking up the cloud...</span>
+                    <span style="font-size:12.5px; color:#94a3b8;">Attempt ${attempt} of ${maxRetries} (Takes ~50s)</span>
+                </div>
+            `;
+        }
+
+        // Try to fetch the data
+        const data = await api('GET', `/analytics/matrix?year=${currentYear}&month=${currentMonth}`);
+        
+        // IF IT SUCCEEDS: Draw the grid and exit the loop!
+        renderGrid(data);
+        renderRings(data);
+        updateMonthLabel();
+        updateTopStreak(data);
+        
+        if(loading) loading.classList.add('hidden');
+        return; 
+
+      } catch (e) {
+        console.log(`[Attempt ${attempt}] Server is asleep, retrying in 5 seconds...`);
+        await delay(5000); // Wait 5 seconds before trying again
+      }
+  }
+
+  // IF IT FAILS AFTER 60 SECONDS
+  if(loading) {
+      loading.innerHTML = `
+        <div style="color: #ef4444; text-align:center;">
+            <span style="font-size: 24px;">❌</span>
+            <p style="margin-top: 8px; font-size: 14px;">Connection Failed. Please refresh.</p>
+        </div>
+      `;
   }
 }
 
