@@ -297,7 +297,7 @@ async def chat_with_ai(
         raise HTTPException(status_code=500, detail="AI is offline.")
 
     try:
-        # 1. THE TOOLBOX (Now with "eyes" to read data!)
+        # 1. THE TOOLBOX (Now with all 3 tools!)
         tools = [
             {
                 "type": "function",
@@ -333,7 +333,7 @@ async def chat_with_ai(
             }
         ]
 
-      # 2. ADVANCED PERSONA & INSTRUCTIONS
+        # 2. ADVANCED PERSONA & INSTRUCTIONS
         messages = [
             {
                 "role": "system", 
@@ -351,7 +351,7 @@ async def chat_with_ai(
                     "4. GENERAL CHAT: If the user just says 'Hi', asks for advice ('How do I stop procrastinating?'), or is just venting, DO NOT use any tools. Just reply with helpful, conversational text.\n\n"
                     "### STRICT BOUNDARIES:\n"
                     "- NEVER guess. If a request is vague (e.g., 'remind me to workout'), politely ask: 'Should I add this as a daily habit or a one-time to-do?'\n"
-                    "- NEVER invent tools. If you don't have a tool for it, just talk normally.\n"
+                    "- NEVER invent tools. If you don't have a tool for it, just talk normally."
                 )
             },
             {"role": "user", "content": request.message}
@@ -370,49 +370,36 @@ async def chat_with_ai(
         # 3. BULLETPROOF TOOL HANDLER
         if response_message.tool_calls:
             for tool_call in response_message.tool_calls:
-                # Safety net: If AI sends bad JSON, don't crash, just ignore arguments
                 try:
                     args = json.loads(tool_call.function.arguments)
                 except Exception:
                     args = {}
 
-                # --- ADD HABIT ---
                 if tool_call.function.name == "add_habit":
                     habit_name = args.get("habit_name", "Unknown Habit")
-                    from models import Habit
-                    new_habit = Habit(title=habit_name, user_id=current_user_id)
+                    new_habit = models.Habit(title=habit_name, user_id=current_user_id)
                     db.add(new_habit)
                     db.commit()
                     return {"response": f"✅ Added '{habit_name}' to your Habits!", "action_taken": "refresh_habits"}
 
-                # --- ADD TO-DO ---
                 elif tool_call.function.name == "add_todo":
                     todo_text = args.get("todo_text", "Unknown Task")
-                    from models import Todo
-                    new_todo = Todo(title=todo_text, user_id=current_user_id)
+                    new_todo = models.Todo(title=todo_text, user_id=current_user_id)
                     db.add(new_todo)
                     db.commit()
                     return {"response": f"✅ Added '{todo_text}' to your To-Do list!", "action_taken": "refresh_todos"}
 
-                # --- READ HABITS (The new eyes!) ---
                 elif tool_call.function.name == "get_habits":
-                    from models import Habit
-                    habits = db.query(Habit).filter(Habit.user_id == current_user_id).all()
-                    
+                    habits = db.query(models.Habit).filter(models.Habit.user_id == current_user_id).all()
                     if not habits:
                         return {"response": "You don't have any habits set up yet! Want me to add one?", "action_taken": "none"}
-                    
-                    # Format the list nicely in Markdown
                     habit_list = "\n".join([f"• **{h.title}**" for h in habits])
                     return {"response": f"Here are your current habits:\n\n{habit_list}", "action_taken": "none"}
 
-        # 4. SAFE FALLBACK
-        # If the AI didn't use a tool but also forgot to write text, provide a fallback to prevent UI errors
         final_text = response_message.content if response_message.content else "I processed your request!"
         return {"response": final_text, "action_taken": "none"}
 
     except Exception as e:
-        # This will print the EXACT error line in your Render logs to help us debug future issues
         import traceback
         traceback.print_exc()
         print(f"[AI ERROR DETAILED] {str(e)}")
