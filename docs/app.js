@@ -23,10 +23,27 @@ const MONTH_NAMES = [
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 // ═════════════════════════════════════════════════════════════════════════════
-// CORE API FETCHER (WITH SECURE JWT INJECTION)
+// CORE API FETCHER (ENVIRONMENT ROUTER)
 // ═════════════════════════════════════════════════════════════════════════════
-const API_BASE_URL = 'https://cogniplan-siaf.onrender.com'; // Ensure this is your Render URL
 
+/* INSTRUCTIONS FOR CHANGING ENVIRONMENTS:
+  This variable tells your frontend exactly where to send data. 
+  You must manually "toggle" these lines depending on what you are doing today.
+  
+  HOW TO TOGGLE:
+  Remove the `//` from the line you want to use, and add `//` to the line you want to hide.
+*/
+
+// 🔴 PRODUCTION URL (The Live Cloud Server)
+// -> ACTIVE when pushed to GitHub.
+// -> Points to Render so anyone on the internet can use your app.
+const API_BASE_URL = 'https://cogniplan-siaf.onrender.com';
+
+// 🟢 LOCAL DEVELOPMENT URL (Your Laptop)
+// -> ACTIVE when building new features on your laptop.
+// -> Points to your local Uvicorn terminal (http://127.0.0.1:8000).
+// -> WARNING: Never leave this active when pushing to GitHub!
+// const API_BASE_URL = "http://localhost:8000";
 async function api(method, endpoint, body = null) {
     // 1. Ask Supabase for the current logged-in user's token
     const { data: { session }, error } = await supabase.auth.getSession();

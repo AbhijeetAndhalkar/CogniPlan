@@ -49,3 +49,31 @@ Auto-Sync: Tables are automatically checked/created every time the backend start
 "ModuleNotFoundError": If you see a missing module (like psycopg2), run pip install -r backend/requirements.txt.
 
 "Port 8000 in use": If the server won't start, close any other Python windows or run uvicorn main:app --reload --port 8001.
+
+🌍 DEPLOYMENT WORKFLOW (LOCAL TO RENDER)
+This project uses a split local/production cycle to make testing fast and deployment seamless.
+
+1. Pushing to Production (Render)
+To make your changes live for the world, you just:
+- Open docs/app.js.
+- Comment out the localhost URL.
+- Uncomment the onrender.com URL.
+- Save the file.
+- Run your Git commands:
+  git add .
+  git commit -m "update frontend endpoints"
+  git push origin main
+
+2. The Shared Database Magic
+The habit you add locally WILL be there when you open the Render link!
+This is the beauty of cloud databases. Your local laptop (using the .env file) and your Render server (using the Render dashboard variables) are both pointing to the exact same Supabase database in the cloud.
+The data isn't saved on your laptop, and it isn't saved on Render. It's saved in Supabase. So, no matter where you access the backend from—your local environment or the live website—you are looking at the exact same data.
+
+3. Switching Back to Local Development
+Whenever you want to build a new feature or test a change tomorrow, next week, or next month, you just:
+- Swap the comments back so app.js uses the localhost URL.
+- Open your terminal and navigate to the backend folder. Run `uvicorn main:app --reload`.
+- Open index.html with Live Server.
+- Start coding!
+
+You have successfully set up a professional, industry-standard development cycle. You can now build, test, and deploy with complete confidence!

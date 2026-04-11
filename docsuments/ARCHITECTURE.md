@@ -7,10 +7,10 @@ This document explains how FlowBoard works under the hood — how the pieces con
 ## System Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
+┌─────────────────────────────────────────────────────────
 │                      BROWSER                             │
 │                                                          │
-│   index.html  ──►  app.js  ──►  style.css               │
+│   index.html  ──►  app.js  ──►  style.css                │
 │       │               │                                  │
 │       │         fetch() API calls                        │
 └───────┼───────────────┼──────────────────────────────────┘
@@ -19,14 +19,14 @@ This document explains how FlowBoard works under the hood — how the pieces con
 ┌─────────────────────────────────────────────────────────┐
 │              FASTAPI SERVER (uvicorn)                    │
 │                                                          │
-│   main.py   ──►  schemas.py  (validates request/resp)   │
+│   main.py   ──►  schemas.py  (validates request/resp)    │
 │      │                                                   │
 │      ├──► models.py  (ORM table classes)                 │
 │      │        │                                          │
 │      │        ▼                                          │
 │      │   database.py  ──►  productivity.db (SQLite)      │
 │      │                                                   │
-│      └──► agent.py  ──►  Groq API (LLaMA 3.3 70B)       │
+│      └──► agent.py  ──►  Groq API (LLaMA 3.3 70B)        │
 │                    └──►  Pinecone (vector memory)        │
 └─────────────────────────────────────────────────────────┘
         │
