@@ -24,18 +24,23 @@ index_name = "todo-log-memory"
 # We assume index is created externally or we do it here if possible. 
 # Try configuring only if pc is available
 if pc:
-    if index_name not in pc.list_indexes().names():
-        try:
-            pc.create_index(
-                name=index_name,
-                dimension=1536,
-                metric="cosine",
-                spec=ServerlessSpec(cloud='aws', region='us-east-1')
-            )
-        except Exception:
-            pass # Fails gracefully if free tier doesn't support the region auto-selected
-    
-    index = pc.Index(index_name)
+    try:
+        if index_name not in pc.list_indexes().names():
+            try:
+                pc.create_index(
+                    name=index_name,
+                    dimension=1536,
+                    metric="cosine",
+                    spec=ServerlessSpec(cloud='aws', region='us-east-1')
+                )
+            except Exception:
+                pass # Fails gracefully if free tier doesn't support the region auto-selected
+        
+        index = pc.Index(index_name)
+    except Exception as e:
+        print(f"Warning: Could not connect to Pinecone API ({e}). Running without memory.")
+        index = None
+        pc = None
 else:
     index = None
 
