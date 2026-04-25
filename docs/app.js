@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   CogniPlan — Vanilla JS Client (Full Fix Version)
+   CogniPlan — Vanilla JS Client (Full Version
    ═══════════════════════════════════════════════════════════════ */
 
 

@@ -77,3 +77,15 @@ Whenever you want to build a new feature or test a change tomorrow, next week, o
 - Start coding!
 
 You have successfully set up a professional, industry-standard development cycle. You can now build, test, and deploy with complete confidence!
+
+Stop the server: Go to your terminal and press CTRL + C to stop FastAPI.
+
+Delete the database: Go to your VS Code file explorer on the left side, right-click the productivity.db file, and hit Delete. (Don't worry, your SQLAlchemy code will automatically rebuild the empty tables the next time it runs).
+
+Run the seed script: In your terminal, make sure you are in the main Tracker folder (not inside the backend folder, because your code says from backend.database...), and run this exact command:
+
+Bash
+python -m backend.seed
+The Result: The terminal will print: ✅ Seeded 5 habits and 5 todos successfully.
+
+Start the server again: Run your uvicorn command, refresh your browser, and the frontend will instantly have 30 days of data.
