@@ -3,7 +3,7 @@ from sqlalchemy import Boolean, Column, Integer, String, Date, DateTime, Foreign
 from sqlalchemy.orm import relationship
 
 from database import Base
-
+# create the structure of tables like the blueprint
 
 class Todo(Base):
     __tablename__ = "todos"

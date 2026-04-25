@@ -1,5 +1,5 @@
 """
-Seed script — run once to populate example habits and todos.
+Seed script — create fake data — run once to populate example habits and todos.
 Usage (from project root):
     python -m backend.seed
 """

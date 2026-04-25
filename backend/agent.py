@@ -2,78 +2,22 @@ import os
 from dotenv import load_dotenv
 from groq import Groq
 import json
-import uuid
 from datetime import date
 from sqlalchemy.orm import Session
-from pinecone import Pinecone, ServerlessSpec
-
 import models
 
-# THIS IS THE CRUCIAL LINE THE AI PROBABLY MISSED
+# ── 1. SETUP & AUTHENTICATION ─────────────────────────────────────────────────
+# We load the .env file to keep our API keys secret. 
+# Then we initialize the Groq client, which acts as our connection to the LLaMA model.
 load_dotenv()
-
-# Now initialize the client
 api_key = os.getenv("GROQ_API_KEY")
 client = Groq(api_key=api_key)
 
-# Initialize Pinecone
-pinecone_api_key = os.getenv("PINECONE_API_KEY")
-pc = Pinecone(api_key=pinecone_api_key) if pinecone_api_key else None
-index_name = "todo-log-memory"
 
-# We assume index is created externally or we do it here if possible. 
-# Try configuring only if pc is available
-if pc:
-    try:
-        if index_name not in pc.list_indexes().names():
-            try:
-                pc.create_index(
-                    name=index_name,
-                    dimension=1536,
-                    metric="cosine",
-                    spec=ServerlessSpec(cloud='aws', region='us-east-1')
-                )
-            except Exception:
-                pass # Fails gracefully if free tier doesn't support the region auto-selected
-        
-        index = pc.Index(index_name)
-    except Exception as e:
-        print(f"Warning: Could not connect to Pinecone API ({e}). Running without memory.")
-        index = None
-        pc = None
-else:
-    index = None
-
-def remember_message(user_message: str):
-    """Helper function to upsert user messages so the agent remembers past habits."""
-    if not index:
-        return
-        
-    # 1. First, make sure the text isn't empty BEFORE creating the embedding
-    if not user_message or not user_message.strip():
-        print("Warning: Tried to embed empty text. Skipping.")
-        return # Skip the embedding process entirely
-        
-    # Dummy embedding of 1536 dims to satisfy Pinecone's vector requirements without external embedding API.
-    # In a full production system, we'd use OpenAI or HuggingFace to embed the actual text.
-    vector_data = [0.0] * 1536 
-    
-    # 2. Right before you upsert to Pinecone, verify the vector isn't all zeros
-    is_all_zeros = all(v == 0.0 for v in vector_data)
-    
-    if is_all_zeros:
-        print("Error: The embedding model returned all zeros! API might be failing.")
-    else:
-        # It's safe! Send it to Pinecone
-        index.upsert(
-            vectors=[
-                {
-                    "id": str(uuid.uuid4()),
-                    "values": vector_data,
-                    "metadata": {"text": user_message}
-                }
-            ]
-        )
+# ── 2. DATABASE FUNCTIONS (The "Action" Tools) ────────────────────────────────
+# The AI cannot magically talk to a database. It only generates text.
+# So, we write these standard Python functions to do the actual database work.
+# Later, we will give the AI a "remote control" to trigger these functions.
 
 def create_agent_habit(db: Session, title: str, user_id: str):
     habit = models.Habit(title=title, user_id=user_id)
@@ -83,6 +27,7 @@ def create_agent_habit(db: Session, title: str, user_id: str):
     return f"Created Habit: {title}"
 
 def delete_agent_habit(db: Session, title: str, user_id: str):
+    # We use .ilike() for a flexible search (e.g., finding "gym" even if they type "Gym")
     habit = db.query(models.Habit).filter(models.Habit.title.ilike(f"%{title}%"), models.Habit.user_id == user_id).first()
     if not habit:
         return f"Could not find habit matching '{title}' to delete"
@@ -98,17 +43,17 @@ def create_agent_todo(db: Session, title: str, user_id: str):
     return f"Created Todo: {title}"
 
 def mark_habit_done(db: Session, habit_title: str, log_date: str, user_id: str):
-    # Find habit by name loosely matching user input
     habit = db.query(models.Habit).filter(models.Habit.title.ilike(f"%{habit_title}%"), models.Habit.user_id == user_id).first()
     if not habit:
         return f"Could not find habit matching '{habit_title}'"
     
-    # log_date should be string format YYYY-MM-DD
+    # We parse the date string sent by the AI into a real Python date object
     try:
         parsed_date = date.fromisoformat(log_date)
     except Exception:
         parsed_date = date.today()
     
+    # Check if a log already exists for this exact day
     log = db.query(models.HabitLog).filter(
         models.HabitLog.habit_id == habit.id,
         models.HabitLog.date == parsed_date,
@@ -127,7 +72,9 @@ def mark_habit_done(db: Session, habit_title: str, log_date: str, user_id: str):
     return action_msg
 
 
-# JSON Schema for LLM tool selection
+# ── 3. AI TOOL SCHEMA (The "Menu") ────────────────────────────────────────────
+# This is how we teach the AI what our Python functions do.
+# We define a strict JSON schema describing the function names and the required arguments.
 tools = [
     {
         "type": "function",
@@ -203,21 +150,20 @@ tools = [
     }
 ]
 
+
+# ── 4. THE DISPATCHER (The "Brain") ───────────────────────────────────────────
+# This function is called by main.py every time the user types a message.
+
 def run_dispatcher(user_message: str, db: Session, user_id: str):
     if not client:
         return "Groq client is not initialized (check API keys in .env)."
-        
-    # Remember message via Pinecone
-    try:
-        remember_message(user_message)
-    except Exception as e:
-        print("Pinecone upsert failed:", e)
     
-    # Provide system prompt context
+    # 4A. Build the System Prompt (Giving the AI context like today's date)
     today_str = date.today().isoformat()
     system_prompt = f"You are a helpful productivity assistant. Today's date is {today_str}. Route the user's intent to the available functions. Provide a short conversational reply summarizing what you did."
     
     try:
+        # 4B. Send the message and the 'tools' menu to the LLaMA model
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
@@ -225,7 +171,7 @@ def run_dispatcher(user_message: str, db: Session, user_id: str):
                 {"role": "user", "content": user_message}
             ],
             tools=tools,
-            tool_choice="auto",
+            tool_choice="auto", # The AI decides if it needs a tool or just normal chat
             max_tokens=1000
         )
     except Exception as e:
@@ -233,13 +179,14 @@ def run_dispatcher(user_message: str, db: Session, user_id: str):
     
     message = response.choices[0].message
     
-    # Execute mapped Python functions if tools are invoked
+    # 4C. Execute Python code if the AI decided to use a tool
     if message.tool_calls:
         results = []
         for tool_call in message.tool_calls:
             function_name = tool_call.function.name
-            args = json.loads(tool_call.function.arguments)
+            args = json.loads(tool_call.function.arguments) # Parse the JSON arguments from the AI
             
+            # Map the AI's choice to the actual Python function
             if function_name == "create_agent_todo":
                 res = create_agent_todo(db, args.get("title"), user_id)
                 results.append(res)
@@ -253,8 +200,8 @@ def run_dispatcher(user_message: str, db: Session, user_id: str):
                 res = mark_habit_done(db, args.get("habit_title"), args.get("log_date"), user_id)
                 results.append(res)
                 
-        # Return summary string
+        # Return a text summary of what was saved to the database
         return " | ".join(results)
     
-    # Otherwise return conversational text
+    # 4D. If no tools were needed, just return the conversational text
     return message.content or "Action completed."
