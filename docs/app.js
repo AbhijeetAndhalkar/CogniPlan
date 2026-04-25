@@ -37,16 +37,16 @@ const MONTH_NAMES = [
 // 🔴 PRODUCTION URL (The Live Cloud Server)
 // -> ACTIVE when pushed to GitHub.
 // -> Points to Render so anyone on the internet can use your app.
-const API_BASE_URL = 'https://cogniplan-siaf.onrender.com';
+// const API_BASE_URL = 'https://cogniplan-siaf.onrender.com';
 
 // 🟢 LOCAL DEVELOPMENT URL (Your Laptop)
 // -> ACTIVE when building new features on your laptop.
 // -> Points to your local Uvicorn terminal (http://127.0.0.1:8000).
 // -> WARNING: Never leave this active when pushing to GitHub!
-// const API_BASE_URL = "http://localhost:8000";
+ const API_BASE_URL = "http://localhost:8000";
 async function api(method, endpoint, body = null) {
-    // 1. Ask Supabase for the current logged-in user's token
-    const { data: { session }, error } = await supabase.auth.getSession();
+    // 1. Get the auth token from localStorage (solves issues with async Supabase session retrieval)
+    const token = localStorage.getItem('flowboard_auth_token');
     
     // 2. Prepare the standard headers
     const headers = {
@@ -54,8 +54,8 @@ async function api(method, endpoint, body = null) {
     };
 
     // 3. THE CRITICAL FIX: Attach the token to the header if they are logged in
-    if (session && session.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
     } else {
         console.warn("⚠️ No active session found. The backend will likely reject this.");
     }
@@ -78,7 +78,9 @@ async function api(method, endpoint, body = null) {
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             console.error("Backend rejected request:", errorData);
-            throw new Error(`API Error: ${response.status}`);
+            const apiError = new Error(`API Error: ${response.status}`);
+            apiError.status = response.status;
+            throw apiError;
         }
         
         return await response.json();
@@ -106,6 +108,10 @@ function padDate(year, month, day) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 async function loadMatrix(maxRetries = 12) {
+  // Guard clause to prevent execution if no token exists
+  const token = localStorage.getItem('flowboard_auth_token');
+  if (!token) return;
+
   const loading   = document.getElementById('grid-loading');
   const container = document.getElementById('habit-grid-container');
   const empty     = document.getElementById('grid-empty');
@@ -141,8 +147,36 @@ async function loadMatrix(maxRetries = 12) {
         return; 
 
       } catch (e) {
-        console.log(`[Attempt ${attempt}] Server is asleep, retrying in 5 seconds...`);
-        await delay(5000); // Wait 5 seconds before trying again
+        // Redirect immediately on Auth Errors
+        if (e.status === 401 || e.status === 403) {
+            console.error("Authentication failed. Redirecting to login.");
+            const authOverlay = document.getElementById('auth-overlay') || document.querySelector('.auth-overlay');
+            if (authOverlay) {
+                authOverlay.style.display = 'flex';
+                authOverlay.classList.remove('hidden');
+            } else {
+                window.location.href = '/login.html';
+            }
+            if(loading) loading.classList.add('hidden');
+            return;
+        }
+
+        // Only retry on network errors or a 502/503 server waking up error
+        if (e.status === 502 || e.status === 503 || e.message.includes("Failed to fetch")) {
+            console.log(`[Attempt ${attempt}] Server is asleep, retrying in 5 seconds...`);
+            await delay(5000); // Wait 5 seconds before trying again
+        } else {
+            // Other errors, abort
+            if(loading) {
+                loading.innerHTML = `
+                    <div style="color: #ef4444; text-align:center;">
+                        <span style="font-size: 24px;">❌</span>
+                        <p style="margin-top: 8px; font-size: 14px;">Error Loading Data.</p>
+                    </div>
+                `;
+            }
+            return;
+        }
       }
   }
 
@@ -404,10 +438,25 @@ function renderRings(data) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 async function loadTodos() {
+  // Guard clause to prevent execution if no token exists
+  const token = localStorage.getItem('flowboard_auth_token');
+  if (!token) return;
+
   try {
     const todos = await api('GET', '/todos/');
     renderTodos(todos);
   } catch (e) {
+    if (e.status === 401 || e.status === 403) {
+       console.error("Authentication failed. Redirecting to login.");
+       const authOverlay = document.getElementById('auth-overlay') || document.querySelector('.auth-overlay');
+       if (authOverlay) {
+           authOverlay.style.display = 'flex';
+           authOverlay.classList.remove('hidden');
+       } else {
+           window.location.href = '/login.html';
+       }
+       return;
+    }
     console.error(e);
   }
 }

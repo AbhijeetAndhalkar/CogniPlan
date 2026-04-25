@@ -1,6 +1,9 @@
 import calendar
 import os
 import json
+from collections import defaultdict
+# This acts as our lightweight checkpointer for memory
+chat_memory = defaultdict(list)
 from dotenv import load_dotenv  # Load environment variables (like JWT secrets) securely from a .env file to avoid exposing sensitive data in the source code.
 
 # Load the hidden variables from the .env file
@@ -297,7 +300,7 @@ async def chat_with_ai(
         raise HTTPException(status_code=500, detail="AI is offline.")
 
     try:
-        # 1. THE TOOLBOX (Now with all 3 tools!)
+        # THE TOOLBOX
         tools = [
             {
                 "type": "function",
@@ -333,30 +336,23 @@ async def chat_with_ai(
             }
         ]
 
-        # 2. ADVANCED PERSONA & INSTRUCTIONS
+        # 1. RETRIEVE MEMORY: Get this user's past messages
+        history = chat_memory[current_user_id]
+
+        # 2. CONSTRUCT PROMPT: System Prompt + History + New Message
         messages = [
             {
                 "role": "system", 
                 "content": (
-                    "You are CogniPlan's AI Co-Pilot, an incredibly smart, friendly, and human-like productivity coach. "
-                    "You help the user manage their time, build habits, and crush their goals.\n\n"
-                    "### YOUR BEHAVIOR & TONE:\n"
-                    "- Speak like a supportive human coach. Be encouraging, empathetic, and conversational.\n"
-                    "- Keep your responses concise (1-3 short sentences) because you live in a small floating chat widget.\n"
-                    "- Use emojis naturally to feel human, and use Markdown (bolding, bullet points) to make advice easy to read.\n\n"
-                    "### TOOL USAGE LOGIC (THINK BEFORE ACTING):\n"
-                    "1. HABITS (Recurring): If the user wants to build a daily routine (e.g., 'I want to start reading', 'Drink more water'), use 'add_habit'.\n"
-                    "2. TO-DOS (One-time): If the user mentions a specific chore or errand (e.g., 'Call mom tomorrow', 'Buy groceries'), use 'add_todo'.\n"
-                    "3. CHECKING STATUS: If the user asks 'What are my habits?', 'What do I have to do?', or 'Show my matrix', use 'get_habits'.\n"
-                    "4. GENERAL CHAT: If the user just says 'Hi', asks for advice ('How do I stop procrastinating?'), or is just venting, DO NOT use any tools. Just reply with helpful, conversational text.\n\n"
-                    "### STRICT BOUNDARIES:\n"
-                    "- NEVER guess. If a request is vague (e.g., 'remind me to workout'), politely ask: 'Should I add this as a daily habit or a one-time to-do?'\n"
-                    "- NEVER invent tools. If you don't have a tool for it, just talk normally."
+                    "You are CogniPlan's AI Co-Pilot, an incredibly smart, friendly, and human-like productivity coach.\n"
+                    "If a request is vague (e.g., 'I want to join gym'), politely ask if it should be a daily habit or a one-time to-do before executing a tool."
                 )
-            },
-            {"role": "user", "content": request.message}
+            }
         ]
+        messages.extend(history) # Inject the goldfish memory fix
+        messages.append({"role": "user", "content": request.message})
 
+        # 3. CALL GROQ
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile", 
             messages=messages,
@@ -367,7 +363,10 @@ async def chat_with_ai(
 
         response_message = response.choices[0].message
 
-        # 3. BULLETPROOF TOOL HANDLER
+        # 4. SAVE USER MESSAGE TO MEMORY
+        chat_memory[current_user_id].append({"role": "user", "content": request.message})
+
+        # 5. EXECUTE TOOLS & SAVE AI RESPONSE TO MEMORY
         if response_message.tool_calls:
             for tool_call in response_message.tool_calls:
                 try:
@@ -380,27 +379,45 @@ async def chat_with_ai(
                     new_habit = models.Habit(title=habit_name, user_id=current_user_id)
                     db.add(new_habit)
                     db.commit()
-                    return {"response": f"✅ Added '{habit_name}' to your Habits!", "action_taken": "refresh_habits"}
+                    
+                    # Save the tool action to memory so it knows it completed it
+                    reply = f"✅ Added '{habit_name}' to your Habits!"
+                    chat_memory[current_user_id].append({"role": "assistant", "content": reply})
+                    return {"response": reply, "action_taken": "refresh_habits"}
 
                 elif tool_call.function.name == "add_todo":
                     todo_text = args.get("todo_text", "Unknown Task")
                     new_todo = models.Todo(title=todo_text, user_id=current_user_id)
                     db.add(new_todo)
                     db.commit()
-                    return {"response": f"✅ Added '{todo_text}' to your To-Do list!", "action_taken": "refresh_todos"}
+                    
+                    reply = f"✅ Added '{todo_text}' to your To-Do list!"
+                    chat_memory[current_user_id].append({"role": "assistant", "content": reply})
+                    return {"response": reply, "action_taken": "refresh_todos"}
 
                 elif tool_call.function.name == "get_habits":
                     habits = db.query(models.Habit).filter(models.Habit.user_id == current_user_id).all()
                     if not habits:
-                        return {"response": "You don't have any habits set up yet! Want me to add one?", "action_taken": "none"}
-                    habit_list = "\n".join([f"• **{h.title}**" for h in habits])
-                    return {"response": f"Here are your current habits:\n\n{habit_list}", "action_taken": "none"}
+                        reply = "You don't have any habits set up yet! Want me to add one?"
+                    else:
+                        habit_list = "\n".join([f"• **{h.title}**" for h in habits])
+                        reply = f"Here are your current habits:\n\n{habit_list}"
+                        
+                    chat_memory[current_user_id].append({"role": "assistant", "content": reply})
+                    return {"response": reply, "action_taken": "none"}
 
+        # If no tools were called, just return the chat text
         final_text = response_message.content if response_message.content else "I processed your request!"
+        
+        # Save the conversational response to memory
+        chat_memory[current_user_id].append({"role": "assistant", "content": final_text})
+        
+        # Prune memory to the last 10 interactions to prevent context window breaking
+        chat_memory[current_user_id] = chat_memory[current_user_id][-10:]
+        
         return {"response": final_text, "action_taken": "none"}
 
     except Exception as e:
         import traceback
         traceback.print_exc()
-        print(f"[AI ERROR DETAILED] {str(e)}")
         raise HTTPException(status_code=500, detail=f"AI encountered an error: {str(e)}")
