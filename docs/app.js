@@ -44,6 +44,9 @@ const MONTH_NAMES = [
 // -> Points to your local Uvicorn terminal (http://127.0.0.1:8000).
 // -> WARNING: Never leave this active when pushing to GitHub!
  const API_BASE_URL = "http://localhost:8000";
+
+
+
 async function api(method, endpoint, body = null) {
     // 1. Get the auth token from localStorage (solves issues with async Supabase session retrieval)
     const token = localStorage.getItem('flowboard_auth_token');
