@@ -50,33 +50,40 @@ Auto-Sync: Tables are automatically checked/created every time the backend start
 
 "Port 8000 in use": If the server won't start, close any other Python windows or run uvicorn main:app --reload --port 8001.
 
-🌍 DEPLOYMENT WORKFLOW (LOCAL TO RENDER)
-This project uses a split local/production cycle to make testing fast and deployment seamless.
+🌍 HOW TO RUN LIVE HOSTED (PRODUCTION)
+This project is configured to be hosted live using GitHub Pages (frontend) and Render (backend).
 
-1. Pushing to Production (Render)
-To make your changes live for the world, you just:
-- Open docs/app.js.
-- Comment out the localhost URL.
-- Uncomment the onrender.com URL.
-- Save the file.
-- Run your Git commands:
-  git add .
-  git commit -m "update frontend endpoints"
-  git push origin main
+To make your changes live for the world, follow these steps:
+1. Open docs/app.js.
+2. Locate the "CORE API FETCHER" section (around line 37).
+3. Comment out the localhost URL by adding `//` before it:
+   // const API_BASE_URL = "http://localhost:8000";
+4. Uncomment the onrender.com URL by removing the `//`:
+   const API_BASE_URL = 'https://cogniplan-siaf.onrender.com';
+5. Save the file.
+6. Push to GitHub:
+   git add .
+   git commit -m "Switch to production URL"
+   git push origin main
+7. Your app will be live on your GitHub Pages URL, and it will communicate with the live Render backend.
 
-2. The Shared Database Magic
-The habit you add locally WILL be there when you open the Render link!
-This is the beauty of cloud databases. Your local laptop (using the .env file) and your Render server (using the Render dashboard variables) are both pointing to the exact same Supabase database in the cloud.
-The data isn't saved on your laptop, and it isn't saved on Render. It's saved in Supabase. So, no matter where you access the backend from—your local environment or the live website—you are looking at the exact same data.
+💻 HOW TO RUN LOCALLY (DEVELOPMENT)
+Whenever you want to build a new feature or test a change locally on your machine:
 
-3. Switching Back to Local Development
-Whenever you want to build a new feature or test a change tomorrow, next week, or next month, you just:
-- Swap the comments back so app.js uses the localhost URL.
-- Open your terminal and navigate to the backend folder. Run `uvicorn main:app --reload`.
-- Open index.html with Live Server.
-- Start coding!
+1. Open docs/app.js.
+2. Comment out the production URL:
+   // const API_BASE_URL = 'https://cogniplan-siaf.onrender.com';
+3. Uncomment the localhost URL:
+   const API_BASE_URL = "http://localhost:8000";
+4. Save the file.
+5. Start the backend: Open terminal, navigate to the tracker folder, and run:
+   .\START_APP.bat
+   (Or manually: cd backend -> .\.venv\Scripts\Activate.ps1 -> uvicorn main:app --reload)
+6. Open docs/index.html with VS Code Live Server.
+7. Start coding!
 
-You have successfully set up a professional, industry-standard development cycle. You can now build, test, and deploy with complete confidence!
+☁️ THE SHARED DATABASE MAGIC
+Both your local laptop and your live Render server point to the exact same Supabase database in the cloud. Data isn't saved on your laptop or on Render—it's saved in Supabase. So, no matter where you access the backend from, you are looking at the exact same data.
 
 Stop the server: Go to your terminal and press CTRL + C to stop FastAPI.
 
