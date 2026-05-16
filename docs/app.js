@@ -37,13 +37,13 @@ const MONTH_NAMES = [
 // 🔴 PRODUCTION URL (The Live Cloud Server)
 // -> ACTIVE when pushed to GitHub.
 // -> Points to Render so anyone on the internet can use your app.
-// const API_BASE_URL = 'https://cogniplan-siaf.onrender.com';
+  // const API_BASE_URL = 'https://cogniplan-siaf.onrender.com';
 
 // 🟢 LOCAL DEVELOPMENT URL (Your Laptop)
 // -> ACTIVE when building new features on your laptop.
 // -> Points to your local Uvicorn terminal (http://127.0.0.1:8000).
 // -> WARNING: Never leave this active when pushing to GitHub!
- const API_BASE_URL = "http://localhost:8000";
+  const API_BASE_URL = "http://localhost:8000";
 
 
 

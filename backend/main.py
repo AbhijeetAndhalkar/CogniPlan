@@ -26,6 +26,7 @@ from pydantic import BaseModel  # For request/response validation
 from database import engine, get_db  # Database connection and session provider
 import models, schemas  # models → DB tables, schemas → data validation layer
 import agent  # Handles AI logic (calls external API like Groq)
+import groq  # For catching groq.BadRequestError
 
 # Create tables in the database if they do not already exist
 models.Base.metadata.create_all(bind=engine)
@@ -309,8 +310,8 @@ async def chat_with_ai(
                     "description": "Add a new daily habit.",
                     "parameters": {
                         "type": "object",
-                        "properties": {"habit_name": {"type": "string"}},
-                        "required": ["habit_name"]
+                        "properties": {"name": {"type": "string"}},
+                        "required": ["name"]
                     }
                 }
             },
@@ -345,7 +346,8 @@ async def chat_with_ai(
                 "role": "system", 
                 "content": (
                     "You are CogniPlan's AI Co-Pilot, an incredibly smart, friendly, and human-like productivity coach.\n"
-                    "If a request is vague (e.g., 'I want to join gym'), politely ask if it should be a daily habit or a one-time to-do before executing a tool."
+                    "If a request is vague (e.g., 'I want to join gym'), politely ask if it should be a daily habit or a one-time to-do before executing a tool.\n"
+                    "CRITICAL: You MUST use the exact parameter names defined in the tool schema. For the `add_habit` tool, you must use the key 'name' and NEVER invent variations like 'habit_name'."
                 )
             }
         ]
@@ -353,13 +355,20 @@ async def chat_with_ai(
         messages.append({"role": "user", "content": request.message})
 
         # 3. CALL GROQ
-        response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile", 
-            messages=messages,
-            tools=tools,
-            tool_choice="auto",
-            temperature=0.3
-        )
+        try:
+            response = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile", 
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=0.3
+            )
+        except groq.BadRequestError as e:
+            print(f"Groq BadRequestError: {e}")
+            return {"reply": "I understood what you wanted, but I had a little trouble formatting the database command. Could you try asking me in a slightly different way?"}
+        except Exception as e:
+            print(f"Groq Exception: {e}")
+            return {"reply": "I encountered an internal server error. Please check the logs."}
 
         response_message = response.choices[0].message
 
@@ -375,7 +384,7 @@ async def chat_with_ai(
                     args = {}
 
                 if tool_call.function.name == "add_habit":
-                    habit_name = args.get("habit_name", "Unknown Habit")
+                    habit_name = args.get("name", "Unknown Habit")
                     new_habit = models.Habit(title=habit_name, user_id=current_user_id)
                     db.add(new_habit)
                     db.commit()
