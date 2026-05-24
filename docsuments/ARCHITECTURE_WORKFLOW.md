@@ -77,7 +77,6 @@ The development environment is decoupled from deployment complexities, allowing 
    ```bash
    uvicorn main:app --reload --host 127.0.0.1 --port 8000
    ```
-   *(Alternatively, execute the automated `START_APP.bat` file in the root folder).*
 3. Local UI automatically connects via `http://localhost:8000`. Hot reloading ensures instant feedback. Check endpoints by reading CLI output errors.
 
 ### 4.2 Shared Hosted Data

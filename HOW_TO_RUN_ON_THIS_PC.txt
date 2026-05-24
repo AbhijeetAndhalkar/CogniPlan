@@ -1,17 +1,7 @@
 🚀 HOW TO RUN COGNIPLAN (PRODUCTIVITY TRACKER)
 Location: D:\Projects\Tracker
-OPTION 1: THE EASY WAY (AUTOMATIC)
-Double-click the START_APP.bat file in the root folder.
-This script is configured to:
-
-Activate the Python Virtual Environment (.venv).
-
-Start the FastAPI backend server.
-
-Launch your browser automatically to http://127.0.0.1:8000.
-
-OPTION 2: THE MANUAL WAY (VS CODE / POWERSHELL)
-If you prefer running it manually to see the logs and debug, follow these steps:
+HOW TO RUN LOCALLY (VS CODE / POWERSHELL)
+Follow these steps to run the app manually:
 
 Open Terminal in the Tracker folder.
 
@@ -77,8 +67,9 @@ Whenever you want to build a new feature or test a change locally on your machin
    const API_BASE_URL = "http://localhost:8000";
 4. Save the file.
 5. Start the backend: Open terminal, navigate to the tracker folder, and run:
-   .\START_APP.bat
-   (Or manually: cd backend -> .\.venv\Scripts\Activate.ps1 -> uvicorn main:app --reload)
+   cd backend
+   .\.venv\Scripts\Activate.ps1
+   uvicorn main:app --reload
 6. Open docs/index.html with VS Code Live Server.
 7. Start coding!
 
