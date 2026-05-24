@@ -1,7 +1,9 @@
 import os
+import re
+from urllib.parse import quote_plus
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from dotenv import load_dotenv
 
 # 1. LOAD SECRETS
@@ -20,6 +22,21 @@ SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sql_app.db")
 # This line automatically fixes that typo if it exists.
 if SQLALCHEMY_DATABASE_URL and SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
     SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# 3b. URL-ENCODE THE PASSWORD (Safety for Special Characters)
+# If the password contains '@', '#', '?', etc., they must be percent-encoded
+# or the URL parser will misread the host/port. This regex safely re-encodes
+# just the password segment without touching the rest of the URL.
+if SQLALCHEMY_DATABASE_URL and not SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    _match = re.match(
+        r'^(postgresql://[^:]+:)(.+?)(@.+)$',
+        SQLALCHEMY_DATABASE_URL
+    )
+    if _match:
+        _prefix, _password, _suffix = _match.groups()
+        SQLALCHEMY_DATABASE_URL = _prefix + quote_plus(_password) + _suffix
+
+print(f"[DB] Connecting to: {re.sub(r':[^@]+@', ':<password>@', SQLALCHEMY_DATABASE_URL)}")
 
 # 4. ENGINE CREATION (Building the Pipe)
 if "sqlite" in SQLALCHEMY_DATABASE_URL:

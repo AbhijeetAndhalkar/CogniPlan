@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CogniPlan — Productivity Dashboard</title>
+  <meta name="description" content="An AI-powered productivity dashboard to track daily habits, manage todos, and visualise progress with analytics rings." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- ① Styles -->
+  <link rel="stylesheet" href="./style.css" />
+
+  <!-- ② External libs — loaded BEFORE React so window.Chart/supabase/marked exist when components mount -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- ③ React 18 + ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- ④ Babel Standalone — transforms JSX in-browser, no build step needed -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <!-- React root -->
+  <div id="root"></div>
+
+  <!--
+    ⑤ CogniPlan.jsx is loaded by Babel as JSX.
+    The "export default function App()" becomes window.App via the interop below.
+  -->
+  <script type="text/babel" src="./CogniPlan.jsx" data-presets="react"></script>
+
+  <!--
+    ⑥ Mount — runs after Babel finishes transforming CogniPlan.jsx.
+    Because CogniPlan.jsx uses "export default", Babel wraps it in a module;
+    we grab App via the global that Babel exposes, then mount.
+  -->
+  <script type="text/babel" data-presets="react">
+    // ⑥ BUG 10 fix: Babel loads CogniPlan.jsx asynchronously, so App may not be
+    // defined when DOMContentLoaded fires. tryMount() polls every 50 ms until
+    // App exists, then mounts exactly once — eliminating the race condition.
+    window.addEventListener('DOMContentLoaded', () => {
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      function tryMount() {
+        if (typeof App !== 'undefined') {
+          root.render(React.createElement(App));
+        } else {
+          setTimeout(tryMount, 50);
+        }
+      }
+      tryMount();
+    });
+  </script>
+</body>
+</html>

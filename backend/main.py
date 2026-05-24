@@ -47,12 +47,16 @@ FRONTEND_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..", "docs"))
 
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")  # Serve frontend files
 
-@app.get("/", include_in_schema=False)  # When user opens the website, return homepage
+@app.get("/", include_in_schema=False)  # When user opens the website, return the React frontend
 def serve_dashboard():
+    react_path = os.path.join(FRONTEND_DIR, "index-react.html")
     index_path = os.path.join(FRONTEND_DIR, "index.html")
+    if os.path.exists(react_path):
+        return FileResponse(react_path)       # ← React version (active)
     if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return {"error": f"Could not find index.html. Looking here: {index_path}"}
+        return FileResponse(index_path)       # ← Fallback: vanilla version
+    return {"error": f"Could not find index-react.html. Looking here: {react_path}"}
+
 
 
 security = HTTPBearer()
@@ -204,7 +208,7 @@ def _compute_streak(logs_map: dict, total_days: int, today_day: int) -> int:  # 
     return streak
 
 
-@app.get("/analytics/matrix")  # API to generate habit calendar matrix
+@app.get("/analytics/matrix", response_model=schemas.MatrixResponse)  # API to generate habit calendar matrix
 def get_matrix(
     year: int = Query(default=None),  # Optional query parameter
     month: int = Query(default=None),  # Optional query parameter
@@ -334,6 +338,33 @@ async def chat_with_ai(
                     "description": "Get a list of the user's current habits.",
                     "parameters": {"type": "object", "properties": {}}
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "delete_habit",
+                    "description": "Delete an existing recurring habit by name.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"name": {"type": "string", "description": "Name of the habit to delete."}},
+                        "required": ["name"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "mark_habit_done",
+                    "description": "Mark a recurring habit as done for today or a specific date.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Name of the habit."},
+                            "log_date": {"type": "string", "description": "Date in YYYY-MM-DD format. Use today's date if not specified."}
+                        },
+                        "required": ["name", "log_date"]
+                    }
+                }
             }
         ]
 
@@ -388,10 +419,9 @@ async def chat_with_ai(
                     new_habit = models.Habit(title=habit_name, user_id=current_user_id)
                     db.add(new_habit)
                     db.commit()
-                    
-                    # Save the tool action to memory so it knows it completed it
                     reply = f"✅ Added '{habit_name}' to your Habits!"
                     chat_memory[current_user_id].append({"role": "assistant", "content": reply})
+                    chat_memory[current_user_id] = chat_memory[current_user_id][-10:]  # BUG 4 fix: prune on every path
                     return {"response": reply, "action_taken": "refresh_habits"}
 
                 elif tool_call.function.name == "add_todo":
@@ -399,9 +429,9 @@ async def chat_with_ai(
                     new_todo = models.Todo(title=todo_text, user_id=current_user_id)
                     db.add(new_todo)
                     db.commit()
-                    
                     reply = f"✅ Added '{todo_text}' to your To-Do list!"
                     chat_memory[current_user_id].append({"role": "assistant", "content": reply})
+                    chat_memory[current_user_id] = chat_memory[current_user_id][-10:]  # BUG 4 fix
                     return {"response": reply, "action_taken": "refresh_todos"}
 
                 elif tool_call.function.name == "get_habits":
@@ -411,9 +441,55 @@ async def chat_with_ai(
                     else:
                         habit_list = "\n".join([f"• **{h.title}**" for h in habits])
                         reply = f"Here are your current habits:\n\n{habit_list}"
-                        
                     chat_memory[current_user_id].append({"role": "assistant", "content": reply})
+                    chat_memory[current_user_id] = chat_memory[current_user_id][-10:]  # BUG 4 fix
                     return {"response": reply, "action_taken": "none"}
+
+                elif tool_call.function.name == "delete_habit":  # BUG 5 fix: wiring agent.py's missing tools
+                    habit_name = args.get("name", "")
+                    habit = db.query(models.Habit).filter(
+                        models.Habit.title.ilike(f"%{habit_name}%"),
+                        models.Habit.user_id == current_user_id
+                    ).first()
+                    if habit:
+                        db.delete(habit)
+                        db.commit()
+                        reply = f"🗑️ Deleted habit '{habit.title}'!"
+                    else:
+                        reply = f"⚠️ Couldn't find a habit matching '{habit_name}'."
+                    chat_memory[current_user_id].append({"role": "assistant", "content": reply})
+                    chat_memory[current_user_id] = chat_memory[current_user_id][-10:]  # BUG 4 fix
+                    return {"response": reply, "action_taken": "refresh_habits"}
+
+                elif tool_call.function.name == "mark_habit_done":  # BUG 5 fix
+                    habit_name = args.get("name", "")
+                    log_date_str = args.get("log_date", date.today().isoformat())
+                    try:
+                        parsed_date = date.fromisoformat(log_date_str)
+                    except Exception:
+                        parsed_date = date.today()
+                    habit = db.query(models.Habit).filter(
+                        models.Habit.title.ilike(f"%{habit_name}%"),
+                        models.Habit.user_id == current_user_id
+                    ).first()
+                    if not habit:
+                        reply = f"⚠️ Couldn't find a habit matching '{habit_name}'."
+                    else:
+                        log = db.query(models.HabitLog).filter(
+                            models.HabitLog.habit_id == habit.id,
+                            models.HabitLog.date == parsed_date,
+                            models.HabitLog.user_id == current_user_id
+                        ).first()
+                        if log:
+                            log.status = True
+                        else:
+                            log = models.HabitLog(habit_id=habit.id, date=parsed_date, status=True, user_id=current_user_id)
+                            db.add(log)
+                        db.commit()
+                        reply = f"✅ Marked '{habit.title}' as done for {log_date_str}!"
+                    chat_memory[current_user_id].append({"role": "assistant", "content": reply})
+                    chat_memory[current_user_id] = chat_memory[current_user_id][-10:]  # BUG 4 fix
+                    return {"response": reply, "action_taken": "refresh_habits"}
 
         # If no tools were called, just return the chat text
         final_text = response_message.content if response_message.content else "I processed your request!"

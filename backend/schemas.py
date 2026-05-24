@@ -94,4 +94,5 @@ class MatrixResponse(BaseModel):
     year: int
     month: int
     days: list[int]
+    today: Optional[int] = None   # day number of today, or None if viewing another month
     habits: list[HabitMatrixRow]
