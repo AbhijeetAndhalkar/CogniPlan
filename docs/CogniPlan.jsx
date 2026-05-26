@@ -1006,10 +1006,9 @@ function App() {
 
       {/* TODO FLOATING WIDGET */}
       <div className="todo-widget-container">
-        <div className="todo-pulse-ring" />
         <button id="todo-toggle-btn" title="Open Todos"
           onClick={() => setIsTodoOpen((o) => !o)}>
-          <img src="./icons/icon-todo.png" alt="Todos" width="28" height="28"
+          <img src="./icons/icons8-notes-48.png" alt="Todos" width="28" height="28"
             draggable="false" style={{ pointerEvents: "none", borderRadius: 6 }} />
         </button>
       </div>
@@ -1017,10 +1016,9 @@ function App() {
 
       {/* AI CHAT FLOATING WIDGET */}
       <div className="chat-widget-container">
-        <div className="pulse-ring" />
         <button id="chat-toggle-btn" title="Open AI Co-Pilot"
           onClick={(e) => { e.stopPropagation(); setIsChatOpen((o) => !o); }}>
-          <img src="./icons/icon-ai-copilot.png" alt="AI Co-Pilot" width="28" height="28"
+          <img src="./icons/icons8-ai.svg" alt="AI Co-Pilot" width="28" height="28"
             draggable="false" style={{ pointerEvents: "none", borderRadius: 6 }} />
         </button>
       </div>

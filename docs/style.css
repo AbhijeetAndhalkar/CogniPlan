@@ -1125,6 +1125,9 @@ body {
 }
 
 #todo-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 60px;
     height: 60px;
     border-radius: 50%;
@@ -1142,15 +1145,6 @@ body {
 #todo-toggle-btn:hover {
     transform: scale(1.08);
     box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
-}
-
-.todo-pulse-ring {
-    position: absolute;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: #10b981;
-    border-radius: 50%;
-    z-index: 1;
-    animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
 /* --- TODO WINDOW MAIN CONTAINER --- */

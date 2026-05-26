@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 
   <!-- ① Styles -->
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./style.css?v=2" />
 
   <!-- ② External libs — loaded BEFORE React so window.Chart/supabase/marked exist when components mount -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -70,7 +70,7 @@
     ⑤ CogniPlan.jsx is loaded by Babel as JSX.
     "window.App = App" at the bottom of CogniPlan.jsx exposes it globally.
   -->
-  <script type="text/babel" src="./CogniPlan.jsx" data-presets="react"
+  <script type="text/babel" src="./CogniPlan.jsx?v=3" data-presets="react"
     onerror="logError('[FATAL] CogniPlan.jsx failed to load — check that the file exists and Live Server is running.')">
   </script>
 
