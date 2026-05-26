@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CogniPlan — Productivity Dashboard</title>
   <meta name="description" content="An AI-powered productivity dashboard to track daily habits, manage todos, and visualise progress with analytics rings." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -22,38 +23,95 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
   <!-- ④ Babel Standalone — transforms JSX in-browser, no build step needed -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"
+    onerror="document.getElementById('error-log').innerHTML += '[FATAL] Babel failed to load from unpkg.com — check your internet connection and reload.\n\n';">
+  </script>
 </head>
 <body>
+  <!-- Visible Error Logger for debugging Babel/React issues -->
+  <div id="error-log" style="color: #ff6b6b; padding: 20px; font-family: monospace; font-size: 14px; position: fixed; top: 0; left: 0; z-index: 99999; background: rgba(0,0,0,0.9); width: 100%; white-space: pre-wrap; pointer-events: none; display: none;"></div>
+  <script>
+    // Show the error overlay only when there's content
+    function logError(msg) {
+      const el = document.getElementById('error-log');
+      el.style.display = 'block';
+      el.innerHTML += msg + '\n\n';
+    }
+
+    window.onerror = function(msg, url, line, col, error) {
+      // Only show hard JS errors, not network or auth errors
+      if (url && (url.includes('supabase') || url.includes('content-script'))) return;
+      logError(`[Error] ${msg}\nFile: ${url}\nLine: ${line}, Col: ${col}`);
+    };
+    window.addEventListener('unhandledrejection', function(e) {
+      const reason = String(e.reason || '');
+      // Ignore Supabase auth/network errors — those are handled inside the app
+      if (reason.includes('AuthApiError') || reason.includes('AuthError') ||
+          reason.includes('NetworkError') || reason.includes('Failed to fetch')) return;
+      logError(`[Promise Error] ${reason}`);
+    });
+    // Only capture console.error that look like Babel SyntaxErrors / React render crashes
+    const originalConsoleError = console.error;
+    console.error = function(...args) {
+      const msg = args.join(' ');
+      const isBabelOrReact = msg.includes('SyntaxError') || msg.includes('is not defined') ||
+                             msg.includes('Unexpected token') || msg.includes('ReactDOM');
+      if (isBabelOrReact) {
+        logError(`[Babel/React Error] ${msg}`);
+      }
+      originalConsoleError.apply(console, args);
+    };
+  </script>
+
   <!-- React root -->
   <div id="root"></div>
 
   <!--
     ⑤ CogniPlan.jsx is loaded by Babel as JSX.
-    The "export default function App()" becomes window.App via the interop below.
+    "window.App = App" at the bottom of CogniPlan.jsx exposes it globally.
   -->
-  <script type="text/babel" src="./CogniPlan.jsx" data-presets="react"></script>
+  <script type="text/babel" src="./CogniPlan.jsx" data-presets="react"
+    onerror="logError('[FATAL] CogniPlan.jsx failed to load — check that the file exists and Live Server is running.')">
+  </script>
 
   <!--
     ⑥ Mount — runs after Babel finishes transforming CogniPlan.jsx.
-    Because CogniPlan.jsx uses "export default", Babel wraps it in a module;
-    we grab App via the global that Babel exposes, then mount.
+    tryMount() polls every 50 ms until App is defined, then mounts exactly once.
+    Gives up after 10 seconds and shows a helpful error.
   -->
   <script type="text/babel" data-presets="react">
-    // ⑥ BUG 10 fix: Babel loads CogniPlan.jsx asynchronously, so App may not be
-    // defined when DOMContentLoaded fires. tryMount() polls every 50 ms until
-    // App exists, then mounts exactly once — eliminating the race condition.
-    window.addEventListener('DOMContentLoaded', () => {
+    // Fix: DOMContentLoaded may have already fired (especially when served by FastAPI).
+    // Check readyState first; only listen for the event if we're still early enough.
+    function startMount() {
       const root = ReactDOM.createRoot(document.getElementById('root'));
+      let attempts = 0;
+      const MAX_ATTEMPTS = 300; // 300 × 50 ms = 15 seconds
       function tryMount() {
+        attempts++;
         if (typeof App !== 'undefined') {
           root.render(React.createElement(App));
+        } else if (attempts >= MAX_ATTEMPTS) {
+          logError(
+            '[FATAL] App component never became available after 15 s.\n' +
+            'Possible causes:\n' +
+            '  1. Babel failed to load (check network)\n' +
+            '  2. Syntax error in CogniPlan.jsx\n' +
+            '  3. CogniPlan.jsx missing "window.App = App" at the bottom\n\n' +
+            'Fix: Reload the page (Ctrl+Shift+R) with a stable internet connection.'
+          );
         } else {
           setTimeout(tryMount, 50);
         }
       }
       tryMount();
-    });
+    }
+
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', startMount);
+    } else {
+      // DOM already loaded (e.g. served by FastAPI, not Live Server)
+      startMount();
+    }
   </script>
 </body>
 </html>

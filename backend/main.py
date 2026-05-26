@@ -2,9 +2,21 @@ import calendar
 import os
 import json
 from collections import defaultdict
-# This acts as our lightweight checkpointer for memory
-chat_memory = defaultdict(list)
-from dotenv import load_dotenv  # Load environment variables (like JWT secrets) securely from a .env file to avoid exposing sensitive data in the source code.
+from dotenv import load_dotenv
+from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt
+from sqlalchemy.orm import Session
+from datetime import date
+from pydantic import BaseModel
+
+from database import engine, get_db
+import models, schemas
+import agent                          # LangGraph ReAct agent + embed_model
+import groq                           # kept for legacy error type (now unused but harmless)
 
 # Load the hidden variables from the .env file
 load_dotenv()
@@ -12,21 +24,9 @@ load_dotenv()
 # Securely fetch the secret key from environment variables (not hardcoded in code)
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
 
-from fastapi import FastAPI, Depends, HTTPException, Query  # Core FastAPI tools
-from fastapi.middleware.cors import CORSMiddleware  # Allows frontend to communicate with backend
-from fastapi.staticfiles import StaticFiles  # Serve static files (HTML, CSS, JS)
-from fastapi.responses import FileResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import jwt
-from sqlalchemy.orm import Session  # Used to interact with the database
-from datetime import date
-from typing import List  # For defining response types
-from pydantic import BaseModel  # For request/response validation
-
-from database import engine, get_db  # Database connection and session provider
-import models, schemas  # models → DB tables, schemas → data validation layer
-import agent  # Handles AI logic (calls external API like Groq)
-import groq  # For catching groq.BadRequestError
+# This acts as our lightweight checkpointer for memory (keyed by user_id)
+# Format: { user_id: [{"role": "user"|"assistant", "content": "..."}] }
+chat_memory: dict[str, list] = defaultdict(list)
 
 # Create tables in the database if they do not already exist
 models.Base.metadata.create_all(bind=engine)
@@ -38,23 +38,23 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
-)  # Enable cross-origin requests (frontend ↔ backend communication)
+)  # Enable cross-origin requests (frontend â†” backend communication)
 
-# ── Static file serving ──────────────────
+# â”€â”€ Static file serving â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Ensures frontend works regardless of where the server is started from
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..", "docs"))
 
-app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")  # Serve frontend files
+# (Static files mount moved to the bottom of the file to serve from root without overriding API routes)
 
 @app.get("/", include_in_schema=False)  # When user opens the website, return the React frontend
 def serve_dashboard():
     react_path = os.path.join(FRONTEND_DIR, "index-react.html")
     index_path = os.path.join(FRONTEND_DIR, "index.html")
     if os.path.exists(react_path):
-        return FileResponse(react_path)       # ← React version (active)
+        return FileResponse(react_path)       # â† React version (active)
     if os.path.exists(index_path):
-        return FileResponse(index_path)       # ← Fallback: vanilla version
+        return FileResponse(index_path)       # â† Fallback: vanilla version
     return {"error": f"Could not find index-react.html. Looking here: {react_path}"}
 
 
@@ -63,18 +63,18 @@ security = HTTPBearer()
 
 def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     token = credentials.credentials
-    
+
     # Fallback to ensure "Bearer " is stripped if something weird happened with the header
     if token.startswith("Bearer "):
         token = token[7:]
-        
+
     try:
-        # Note: algorithms=["HS256"] and options={"verify_aud": False} are explicitly included
-        payload = jwt.decode(token, options={"verify_signature": False, "verify_aud": False})
+        # key="" is required by PyJWT stubs even when verify_signature=False
+        payload = jwt.decode(token, key="", algorithms=["HS256"], options={"verify_signature": False, "verify_aud": False})
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
-        return user_id
+        return str(user_id)  # explicit cast so Pylance knows the return type is str
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
     except jwt.PyJWTError as e:
@@ -89,14 +89,16 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(secu
 
 @app.post("/todos/", response_model=schemas.TodoResponse)
 def create_todo(todo: schemas.TodoCreate, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
-    db_todo = models.Todo(**todo.model_dump(), user_id=current_user_id)  # Convert request data into DB object
-    db.add(db_todo)  # Add to session
-    db.commit()  # Save to database
-    db.refresh(db_todo)  # Refresh to get updated values (like ID)
-    return db_todo  # Return created todo
+    # Generate a semantic embedding so this task is searchable by meaning later
+    vector = agent.embed_model.encode(todo.title).tolist()
+    db_todo = models.Todo(**todo.model_dump(), user_id=current_user_id, embedding=vector)
+    db.add(db_todo)
+    db.commit()
+    db.refresh(db_todo)
+    return db_todo
 
 
-@app.get("/todos/", response_model=List[schemas.TodoResponse])
+@app.get("/todos/", response_model=list[schemas.TodoResponse])
 def get_todos(db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
     return db.query(models.Todo).filter(models.Todo.user_id == current_user_id).all()  # Fetch all todos from database
 
@@ -139,7 +141,7 @@ def create_habit(habit: schemas.HabitCreate, db: Session = Depends(get_db), curr
     return db_habit
 
 
-@app.get("/habits/", response_model=List[schemas.HabitResponse])
+@app.get("/habits/", response_model=list[schemas.HabitResponse])
 def get_habits(db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
     return db.query(models.Habit).filter(models.Habit.user_id == current_user_id).all()  # Fetch all habits
 
@@ -165,8 +167,8 @@ def delete_habit(habit_id: int, db: Session = Depends(get_db), current_user_id: 
 def toggle_habit_log(habit_id: int, log_date: date, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
     """
     Handles checkbox behavior in UI:
-    - If log exists → toggle True/False
-    - If not → create new log (True)
+    - If log exists â†’ toggle True/False
+    - If not â†’ create new log (True)
     """
 
     habit = db.query(models.Habit).filter(models.Habit.id == habit_id, models.Habit.user_id == current_user_id).first()
@@ -192,7 +194,7 @@ def toggle_habit_log(habit_id: int, log_date: date, db: Session = Depends(get_db
 
 
 # ==========================================
-# 4. ANALYTICS — Habit Matrix (Gap-Fill)
+# 4. ANALYTICS â€” Habit Matrix (Gap-Fill)
 # ==========================================
 
 def _compute_streak(logs_map: dict, total_days: int, today_day: int) -> int:  # Returns current streak
@@ -287,222 +289,50 @@ def get_matrix(
 
 
 # ==========================================
-# 5. AI INTELLIGENCE — Dispatcher chat
+# 5. AI INTELLIGENCE â€” LangGraph ReAct Agent
 # ==========================================
 
 class ChatRequest(BaseModel):
-    message: str  # Defines input format for chat API
+    message: str
 
 
 @app.post("/api/chat")
 async def chat_with_ai(
-    request: ChatRequest, 
+    request: ChatRequest,
     current_user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    groq_client = agent.client
-    if not groq_client:
-        raise HTTPException(status_code=500, detail="AI is offline.")
-
+    """
+    Single entry point for the AI Co-Pilot.
+    Delegates entirely to the LangGraph ReAct agent in agent.py.
+    The agent loops (reason â†’ tool â†’ observe â†’ reasonâ€¦) until it hits END,
+    then returns a synthesized response and an action signal for the frontend.
+    """
     try:
-        # THE TOOLBOX
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "add_habit",
-                    "description": "Add a new daily habit.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"name": {"type": "string"}},
-                        "required": ["name"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "add_todo",
-                    "description": "Add a one-time task.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"todo_text": {"type": "string"}},
-                        "required": ["todo_text"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_habits",
-                    "description": "Get a list of the user's current habits.",
-                    "parameters": {"type": "object", "properties": {}}
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_habit",
-                    "description": "Delete an existing recurring habit by name.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"name": {"type": "string", "description": "Name of the habit to delete."}},
-                        "required": ["name"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "mark_habit_done",
-                    "description": "Mark a recurring habit as done for today or a specific date.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string", "description": "Name of the habit."},
-                            "log_date": {"type": "string", "description": "Date in YYYY-MM-DD format. Use today's date if not specified."}
-                        },
-                        "required": ["name", "log_date"]
-                    }
-                }
-            }
-        ]
-
-        # 1. RETRIEVE MEMORY: Get this user's past messages
+        # Retrieve this user's conversation history (plain dicts)
         history = chat_memory[current_user_id]
 
-        # 2. CONSTRUCT PROMPT: System Prompt + History + New Message
-        messages = [
-            {
-                "role": "system", 
-                "content": (
-                    "You are CogniPlan's AI Co-Pilot, an incredibly smart, friendly, and human-like productivity coach.\n"
-                    "If a request is vague (e.g., 'I want to join gym'), politely ask if it should be a daily habit or a one-time to-do before executing a tool.\n"
-                    "CRITICAL: You MUST use the exact parameter names defined in the tool schema. For the `add_habit` tool, you must use the key 'name' and NEVER invent variations like 'habit_name'."
-                )
-            }
-        ]
-        messages.extend(history) # Inject the goldfish memory fix
-        messages.append({"role": "user", "content": request.message})
+        # Run the LangGraph ReAct loop â€” returns only when the AI is done
+        response_text, action_taken = agent.run_agent(
+            user_message=request.message,
+            user_id=current_user_id,
+            db=db,
+            history=history,
+        )
 
-        # 3. CALL GROQ
-        try:
-            response = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile", 
-                messages=messages,
-                tools=tools,
-                tool_choice="auto",
-                temperature=0.3
-            )
-        except groq.BadRequestError as e:
-            print(f"Groq BadRequestError: {e}")
-            return {"reply": "I understood what you wanted, but I had a little trouble formatting the database command. Could you try asking me in a slightly different way?"}
-        except Exception as e:
-            print(f"Groq Exception: {e}")
-            return {"reply": "I encountered an internal server error. Please check the logs."}
+        # Update in-memory history (last 10 turns to avoid context blowup)
+        chat_memory[current_user_id].append({"role": "user",      "content": request.message})
+        chat_memory[current_user_id].append({"role": "assistant", "content": response_text})
+        chat_memory[current_user_id] = chat_memory[current_user_id][-20:]  # 10 turns = 20 messages
 
-        response_message = response.choices[0].message
-
-        # 4. SAVE USER MESSAGE TO MEMORY
-        chat_memory[current_user_id].append({"role": "user", "content": request.message})
-
-        # 5. EXECUTE TOOLS & SAVE AI RESPONSE TO MEMORY
-        if response_message.tool_calls:
-            for tool_call in response_message.tool_calls:
-                try:
-                    args = json.loads(tool_call.function.arguments)
-                except Exception:
-                    args = {}
-
-                if tool_call.function.name == "add_habit":
-                    habit_name = args.get("name", "Unknown Habit")
-                    new_habit = models.Habit(title=habit_name, user_id=current_user_id)
-                    db.add(new_habit)
-                    db.commit()
-                    reply = f"✅ Added '{habit_name}' to your Habits!"
-                    chat_memory[current_user_id].append({"role": "assistant", "content": reply})
-                    chat_memory[current_user_id] = chat_memory[current_user_id][-10:]  # BUG 4 fix: prune on every path
-                    return {"response": reply, "action_taken": "refresh_habits"}
-
-                elif tool_call.function.name == "add_todo":
-                    todo_text = args.get("todo_text", "Unknown Task")
-                    new_todo = models.Todo(title=todo_text, user_id=current_user_id)
-                    db.add(new_todo)
-                    db.commit()
-                    reply = f"✅ Added '{todo_text}' to your To-Do list!"
-                    chat_memory[current_user_id].append({"role": "assistant", "content": reply})
-                    chat_memory[current_user_id] = chat_memory[current_user_id][-10:]  # BUG 4 fix
-                    return {"response": reply, "action_taken": "refresh_todos"}
-
-                elif tool_call.function.name == "get_habits":
-                    habits = db.query(models.Habit).filter(models.Habit.user_id == current_user_id).all()
-                    if not habits:
-                        reply = "You don't have any habits set up yet! Want me to add one?"
-                    else:
-                        habit_list = "\n".join([f"• **{h.title}**" for h in habits])
-                        reply = f"Here are your current habits:\n\n{habit_list}"
-                    chat_memory[current_user_id].append({"role": "assistant", "content": reply})
-                    chat_memory[current_user_id] = chat_memory[current_user_id][-10:]  # BUG 4 fix
-                    return {"response": reply, "action_taken": "none"}
-
-                elif tool_call.function.name == "delete_habit":  # BUG 5 fix: wiring agent.py's missing tools
-                    habit_name = args.get("name", "")
-                    habit = db.query(models.Habit).filter(
-                        models.Habit.title.ilike(f"%{habit_name}%"),
-                        models.Habit.user_id == current_user_id
-                    ).first()
-                    if habit:
-                        db.delete(habit)
-                        db.commit()
-                        reply = f"🗑️ Deleted habit '{habit.title}'!"
-                    else:
-                        reply = f"⚠️ Couldn't find a habit matching '{habit_name}'."
-                    chat_memory[current_user_id].append({"role": "assistant", "content": reply})
-                    chat_memory[current_user_id] = chat_memory[current_user_id][-10:]  # BUG 4 fix
-                    return {"response": reply, "action_taken": "refresh_habits"}
-
-                elif tool_call.function.name == "mark_habit_done":  # BUG 5 fix
-                    habit_name = args.get("name", "")
-                    log_date_str = args.get("log_date", date.today().isoformat())
-                    try:
-                        parsed_date = date.fromisoformat(log_date_str)
-                    except Exception:
-                        parsed_date = date.today()
-                    habit = db.query(models.Habit).filter(
-                        models.Habit.title.ilike(f"%{habit_name}%"),
-                        models.Habit.user_id == current_user_id
-                    ).first()
-                    if not habit:
-                        reply = f"⚠️ Couldn't find a habit matching '{habit_name}'."
-                    else:
-                        log = db.query(models.HabitLog).filter(
-                            models.HabitLog.habit_id == habit.id,
-                            models.HabitLog.date == parsed_date,
-                            models.HabitLog.user_id == current_user_id
-                        ).first()
-                        if log:
-                            log.status = True
-                        else:
-                            log = models.HabitLog(habit_id=habit.id, date=parsed_date, status=True, user_id=current_user_id)
-                            db.add(log)
-                        db.commit()
-                        reply = f"✅ Marked '{habit.title}' as done for {log_date_str}!"
-                    chat_memory[current_user_id].append({"role": "assistant", "content": reply})
-                    chat_memory[current_user_id] = chat_memory[current_user_id][-10:]  # BUG 4 fix
-                    return {"response": reply, "action_taken": "refresh_habits"}
-
-        # If no tools were called, just return the chat text
-        final_text = response_message.content if response_message.content else "I processed your request!"
-        
-        # Save the conversational response to memory
-        chat_memory[current_user_id].append({"role": "assistant", "content": final_text})
-        
-        # Prune memory to the last 10 interactions to prevent context window breaking
-        chat_memory[current_user_id] = chat_memory[current_user_id][-10:]
-        
-        return {"response": final_text, "action_taken": "none"}
+        return {"response": response_text, "action_taken": action_taken}
 
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"AI encountered an error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"AI error: {str(e)}")
+
+
+# Mount static files at root / so relative paths in index-react.html work perfectly.
+# MUST BE AT THE END so it does not override API routes.
+app.mount("/", StaticFiles(directory=FRONTEND_DIR), name="static")

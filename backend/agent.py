@@ -1,207 +1,385 @@
+"""
+agent.py — CogniPlan LangGraph ReAct Agent
+===========================================
+Architecture: cyclic StateGraph
+  START → agent_node
+             │ (tool call?)
+             ├─ YES → tools_node → agent_node  (loop until done)
+             └─ NO  → END
+
+Key design choices:
+- embed_model lives here so all AI logic is co-located.
+- make_tools() is a factory that returns @tool closures capturing (user_id, db).
+  This lets us compile the graph structure once and only rebuild the
+  LLM+tools binding per request (cheap).
+- run_agent() is the single public function called from main.py.
+"""
+
 import os
+import time
+from datetime import date, timedelta
+from typing import Annotated, TypedDict
+
 from dotenv import load_dotenv
-from groq import Groq
-import json
-from datetime import date
 from sqlalchemy.orm import Session
+
+# ── LangGraph / LangChain ──────────────────────────────────────────────────────
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
+from langchain_core.tools import tool
+from langchain_groq import ChatGroq
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode, tools_condition
+
+# ── Local modules ──────────────────────────────────────────────────────────────
+from sentence_transformers import SentenceTransformer
 import models
 
-# ── 1. SETUP & AUTHENTICATION ─────────────────────────────────────────────────
-# We load the .env file to keep our API keys secret. 
-# Then we initialize the Groq client, which acts as our connection to the LLaMA model.
-load_dotenv()
-api_key = os.getenv("GROQ_API_KEY")
-client = Groq(api_key=api_key)
+load_dotenv()  # MUST be before ChatGroq() so GROQ_API_KEY is in the environment
+
+# ── Embedding model (loaded once at import time) ───────────────────────────────
+# all-mpnet-base-v2 → 768-dim vectors. First run downloads ~420 MB to
+# ~/.cache/huggingface; every subsequent start is instant.
+print("Loading AI Embedding Model...")
+embed_model = SentenceTransformer("all-mpnet-base-v2")
+print("Embedding model ready!")
+
+# ── LLM — instantiated lazily in run_agent() so .env is always loaded first ──
+_groq_api_key = os.getenv("GROQ_API_KEY")  # read once as a sanity check
+if not _groq_api_key:
+    print("WARNING: GROQ_API_KEY not found in environment. AI chat will fail until .env is loaded.")
+
+# ── Agent State ────────────────────────────────────────────────────────────────
+class AgentState(TypedDict):
+    messages: Annotated[list[BaseMessage], add_messages]  # append-only via add_messages
+    user_id: str
 
 
-# ── 2. DATABASE FUNCTIONS (The "Action" Tools) ────────────────────────────────
-# The AI cannot magically talk to a database. It only generates text.
-# So, we write these standard Python functions to do the actual database work.
-# Later, we will give the AI a "remote control" to trigger these functions.
+# ══════════════════════════════════════════════════════════════════════════════
+# TOOL FACTORY
+# Returns a fresh list of @tool closures that already "know" the current
+# user_id and db session, so the LLM never sees those internal parameters.
+# ══════════════════════════════════════════════════════════════════════════════
+def make_tools(user_id: str, db: Session) -> list:
+    """Build a set of LangChain tools bound to this request's user and DB."""
 
-def create_agent_habit(db: Session, title: str, user_id: str):
-    habit = models.Habit(title=title, user_id=user_id)
-    db.add(habit)
-    db.commit()
-    db.refresh(habit)
-    return f"Created Habit: {title}"
+    @tool
+    def add_habit(title: str) -> str:
+        """Add a new recurring daily habit for the user."""
+        new_habit = models.Habit(title=title, user_id=user_id)
+        db.add(new_habit)
+        db.commit()
+        return f"✅ Created habit: '{title}'"
 
-def delete_agent_habit(db: Session, title: str, user_id: str):
-    # We use .ilike() for a flexible search (e.g., finding "gym" even if they type "Gym")
-    habit = db.query(models.Habit).filter(models.Habit.title.ilike(f"%{title}%"), models.Habit.user_id == user_id).first()
-    if not habit:
-        return f"Could not find habit matching '{title}' to delete"
-    db.delete(habit)
-    db.commit()
-    return f"Deleted habit: {habit.title}"
-
-def create_agent_todo(db: Session, title: str, user_id: str):
-    todo = models.Todo(title=title, user_id=user_id)
-    db.add(todo)
-    db.commit()
-    db.refresh(todo)
-    return f"Created Todo: {title}"
-
-def mark_habit_done(db: Session, habit_title: str, log_date: str, user_id: str):
-    habit = db.query(models.Habit).filter(models.Habit.title.ilike(f"%{habit_title}%"), models.Habit.user_id == user_id).first()
-    if not habit:
-        return f"Could not find habit matching '{habit_title}'"
-    
-    # We parse the date string sent by the AI into a real Python date object
-    try:
-        parsed_date = date.fromisoformat(log_date)
-    except Exception:
-        parsed_date = date.today()
-    
-    # Check if a log already exists for this exact day
-    log = db.query(models.HabitLog).filter(
-        models.HabitLog.habit_id == habit.id,
-        models.HabitLog.date == parsed_date,
-        models.HabitLog.user_id == user_id
-    ).first()
-
-    if log:
-        log.status = True
-        action_msg = f"Updated habit '{habit.title}' as done for {log_date}."
-    else:
-        log = models.HabitLog(habit_id=habit.id, date=parsed_date, status=True, user_id=user_id)
-        db.add(log)
-        action_msg = f"Marked habit '{habit.title}' as done for {log_date}."
-        
-    db.commit()
-    return action_msg
-
-
-# ── 3. AI TOOL SCHEMA (The "Menu") ────────────────────────────────────────────
-# This is how we teach the AI what our Python functions do.
-# We define a strict JSON schema describing the function names and the required arguments.
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "create_agent_habit",
-            "description": "Create a new recurring Habit.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "title": {
-                        "type": "string",
-                        "description": "The title or description of the habit."
-                    }
-                },
-                "required": ["title"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "delete_agent_habit",
-            "description": "Delete an existing recurring Habit.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "title": {
-                        "type": "string",
-                        "description": "The title or description of the habit to delete."
-                    }
-                },
-                "required": ["title"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_agent_todo",
-            "description": "Create a new one-off Todo task.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "title": {
-                        "type": "string",
-                        "description": "The title or description of the task."
-                    }
-                },
-                "required": ["title"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "mark_habit_done",
-            "description": "Mark a recurring habit as done for a specific date.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "habit_title": {
-                        "type": "string",
-                        "description": "The name of the habit (e.g., 'gym', 'read', 'code')."
-                    },
-                    "log_date": {
-                        "type": "string",
-                        "description": "The date the habit was done, in YYYY-MM-DD format."
-                    }
-                },
-                "required": ["habit_title", "log_date"]
-            }
-        }
-    }
-]
-
-
-# ── 4. THE DISPATCHER (The "Brain") ───────────────────────────────────────────
-# This function is called by main.py every time the user types a message.
-
-def run_dispatcher(user_message: str, db: Session, user_id: str):
-    if not client:
-        return "Groq client is not initialized (check API keys in .env)."
-    
-    # 4A. Build the System Prompt (Giving the AI context like today's date)
-    today_str = date.today().isoformat()
-    system_prompt = f"You are a helpful productivity assistant. Today's date is {today_str}. Route the user's intent to the available functions. Provide a short conversational reply summarizing what you did."
-    
-    try:
-        # 4B. Send the message and the 'tools' menu to the LLaMA model
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ],
-            tools=tools,
-            tool_choice="auto", # The AI decides if it needs a tool or just normal chat
-            max_tokens=1000
+    @tool
+    def delete_habit(name: str) -> str:
+        """Delete an existing recurring habit by name (fuzzy match)."""
+        habit = (
+            db.query(models.Habit)
+            .filter(
+                models.Habit.title.ilike(f"%{name}%"),
+                models.Habit.user_id == user_id,
+            )
+            .first()
         )
-    except Exception as e:
-        return f"Error contacting LLM: {str(e)}"
-    
-    message = response.choices[0].message
-    
-    # 4C. Execute Python code if the AI decided to use a tool
-    if message.tool_calls:
-        results = []
-        for tool_call in message.tool_calls:
-            function_name = tool_call.function.name
-            args = json.loads(tool_call.function.arguments) # Parse the JSON arguments from the AI
-            
-            # Map the AI's choice to the actual Python function
-            if function_name == "create_agent_todo":
-                res = create_agent_todo(db, args.get("title"), user_id)
-                results.append(res)
-            elif function_name == "create_agent_habit":
-                res = create_agent_habit(db, args.get("title"), user_id)
-                results.append(res)
-            elif function_name == "delete_agent_habit":
-                res = delete_agent_habit(db, args.get("title"), user_id)
-                results.append(res)
-            elif function_name == "mark_habit_done":
-                res = mark_habit_done(db, args.get("habit_title"), args.get("log_date"), user_id)
-                results.append(res)
+        if not habit:
+            return f"⚠️ No habit found matching '{name}'."
+        db.delete(habit)
+        db.commit()
+        return f"🗑️ Deleted habit: '{habit.title}'"
+
+    @tool
+    def get_habits() -> str:
+        """List all of the user's current habits."""
+        habits = (
+            db.query(models.Habit)
+            .filter(models.Habit.user_id == user_id, models.Habit.is_active == True)
+            .all()
+        )
+        if not habits:
+            return "You don't have any habits yet!"
+        return "\n".join([f"• {h.title}" for h in habits])
+
+    @tool
+    def add_todo(todo_text: str) -> str:
+        """Add a new one-time to-do task for the user. Generates a semantic embedding for future search."""
+        vector = embed_model.encode(todo_text).tolist()
+        new_todo = models.Todo(title=todo_text, user_id=user_id, embedding=vector)
+        db.add(new_todo)
+        db.commit()
+        return f"✅ Added to To-Do list: '{todo_text}'"
+
+    @tool
+    def mark_habit_done(name: str, log_date: str) -> str:
+        """Mark a recurring habit as completed for a specific date (YYYY-MM-DD).
+        Use today's date if the user does not specify one."""
+        habit = (
+            db.query(models.Habit)
+            .filter(
+                models.Habit.title.ilike(f"%{name}%"),
+                models.Habit.user_id == user_id,
+            )
+            .first()
+        )
+        if not habit:
+            return f"⚠️ No habit found matching '{name}'."
+        try:
+            parsed_date = date.fromisoformat(log_date)
+        except Exception:
+            parsed_date = date.today()
+
+        log = (
+            db.query(models.HabitLog)
+            .filter(
+                models.HabitLog.habit_id == habit.id,
+                models.HabitLog.date == parsed_date,
+                models.HabitLog.user_id == user_id,
+            )
+            .first()
+        )
+        if log:
+            log.status = True
+        else:
+            log = models.HabitLog(
+                habit_id=habit.id, date=parsed_date, status=True, user_id=user_id
+            )
+            db.add(log)
+        db.commit()
+        return f"✅ Marked '{habit.title}' as done for {parsed_date.isoformat()}."
+
+    @tool
+    def search_past_tasks(query: str) -> str:
+        """Semantic vector search to find past or existing to-do tasks using natural language.
+        Use when the user asks what tasks they have related to a topic, or wants to find something they added before."""
+        query_vector = embed_model.encode(query).tolist()
+        results = (
+            db.query(models.Todo)
+            .filter(
+                models.Todo.user_id == user_id,
+                models.Todo.embedding.isnot(None),
+            )
+            .order_by(models.Todo.embedding.cosine_distance(query_vector))
+            .limit(5)
+            .all()
+        )
+        if not results:
+            return "No related tasks found in your list."
+        rows = [
+            f"- {t.title} ({'✅ done' if t.is_completed else '⬜ pending'})"
+            for t in results
+        ]
+        return "\n".join(rows)
+
+    @tool
+    def delete_all_habits() -> str:
+        """Bulk deletes every habit to clear the board."""
+        habits = db.query(models.Habit).filter(models.Habit.user_id == user_id).all()
+        count = len(habits)
+        for h in habits:
+            db.delete(h)
+        db.commit()
+        return f"🗑️ Deleted all {count} habits."
+
+    @tool
+    def mark_todo_done(title: str) -> str:
+        """Checks off a pending task."""
+        todo = (
+            db.query(models.Todo)
+            .filter(
+                models.Todo.title.ilike(f"%{title}%"),
+                models.Todo.user_id == user_id,
+            )
+            .first()
+        )
+        if not todo:
+            return f"⚠️ No task found matching '{title}'."
+        todo.is_completed = True
+        db.commit()
+        return f"✅ Marked task '{todo.title}' as done."
+
+    @tool
+    def delete_all_todos() -> str:
+        """Bulk deletes every task."""
+        todos = db.query(models.Todo).filter(models.Todo.user_id == user_id).all()
+        count = len(todos)
+        for t in todos:
+            db.delete(t)
+        db.commit()
+        return f"🗑️ Deleted all {count} tasks."
+
+    @tool
+    def get_daily_agenda() -> str:
+        """Pulls a combined list of pending tasks and active habits for a morning briefing."""
+        todos = db.query(models.Todo).filter(models.Todo.user_id == user_id, models.Todo.is_completed == False).all()
+        habits = db.query(models.Habit).filter(models.Habit.user_id == user_id, models.Habit.is_active == True).all()
+        
+        agenda = ["Here is your daily agenda:"]
+        agenda.append("\n**Pending Tasks:**")
+        if not todos:
+            agenda.append("No pending tasks!")
+        else:
+            for t in todos:
+                agenda.append(f"- [ ] {t.title}")
                 
-        # Return a text summary of what was saved to the database
-        return " | ".join(results)
-    
-    # 4D. If no tools were needed, just return the conversational text
-    return message.content or "Action completed."
+        agenda.append("\n**Active Habits:**")
+        if not habits:
+            agenda.append("No active habits!")
+        else:
+            for h in habits:
+                agenda.append(f"- {h.title}")
+                
+        return "\n".join(agenda)
+
+    @tool
+    def get_progress_report() -> str:
+        """Checks the habit_logs table to report on what the user finished today and their streaks."""
+        today = date.today()
+        
+        habits = db.query(models.Habit).filter(models.Habit.user_id == user_id, models.Habit.is_active == True).all()
+        if not habits:
+            return "No active habits to report on."
+            
+        report = [f"**Progress Report for {today.isoformat()}:**"]
+        
+        for h in habits:
+            logs = db.query(models.HabitLog).filter(
+                models.HabitLog.user_id == user_id,
+                models.HabitLog.habit_id == h.id,
+                models.HabitLog.status == True
+            ).all()
+            
+            dates_completed = {log.date for log in logs}
+            
+            status = "✅ Done" if today in dates_completed else "❌ Not done"
+            
+            streak = 0
+            d = today
+            if d not in dates_completed:
+                d = today - timedelta(days=1)
+                
+            while d in dates_completed:
+                streak += 1
+                d -= timedelta(days=1)
+                
+            report.append(f"- {h.title}: {status} (Streak: {streak} days)")
+            
+        return "\n".join(report)
+
+    return [
+        add_habit, delete_habit, get_habits, mark_habit_done, delete_all_habits,
+        add_todo, mark_todo_done, delete_all_todos,
+        search_past_tasks, get_daily_agenda, get_progress_report
+    ]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ACTION DETECTOR
+# Inspects the final message list to determine what the AI did —
+# so the frontend knows whether to refresh todos, habits, or nothing.
+# ══════════════════════════════════════════════════════════════════════════════
+_TODO_TOOLS   = {"add_todo", "mark_todo_done", "delete_all_todos"}
+_HABIT_TOOLS  = {"add_habit", "delete_habit", "mark_habit_done", "delete_all_habits"}
+
+def _detect_action(messages: list[BaseMessage]) -> str:
+    """Walk the message list and return the highest-priority action_taken signal."""
+    todo_touched  = False
+    habit_touched = False
+    for msg in messages:
+        # ToolMessage carries the tool name in its `name` attribute
+        tool_name = getattr(msg, "name", None)
+        if tool_name in _TODO_TOOLS:
+            todo_touched = True
+        if tool_name in _HABIT_TOOLS:
+            habit_touched = True
+    if habit_touched and todo_touched:
+        return "refresh_all"
+    if habit_touched:
+        return "refresh_habits"
+    if todo_touched:
+        return "refresh_todos"
+    return "none"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PUBLIC ENTRY POINT
+# Called once per chat message from main.py.
+# ══════════════════════════════════════════════════════════════════════════════
+SYSTEM_PROMPT = (
+    "You are CogniPlan's AI Co-Pilot — a smart, friendly, human-like productivity coach.\n"
+    "Today's date is {today}.\n"
+    "You have access to tools to manage the user's habits and to-do tasks. "
+    "If a request is vague (e.g. 'I want to start going to the gym'), ask whether it should be "
+    "a daily habit or a one-time task before acting.\n"
+    "When you need multiple pieces of information, use tools in sequence — search first, then act."
+)
+
+
+def run_agent(
+    user_message: str,
+    user_id: str,
+    db: Session,
+    history: list[dict],          # raw dicts: [{"role": "user"|"assistant", "content": "..."}]
+) -> tuple[str, str]:
+    """
+    Run the LangGraph ReAct loop and return (response_text, action_taken).
+
+    Parameters
+    ----------
+    user_message : The new message from the user.
+    user_id      : Authenticated user's UUID (from Supabase JWT).
+    db           : SQLAlchemy session for this request.
+    history      : Recent conversation history (last ~10 messages).
+    """
+    # Build the LLM here (after load_dotenv() has run in main.py at startup)
+    llm = ChatGroq(
+        model="llama-3.3-70b-versatile",
+        temperature=0.3,
+        api_key=os.getenv("GROQ_API_KEY"),
+    )
+
+    # 1. Build request-scoped tools (closures capture user_id + db)
+    bound_tools = make_tools(user_id, db)
+    llm_with_tools = llm.bind_tools(bound_tools)
+
+    # 2. Build the graph (fast — no heavy computation)
+    def agent_node(state: AgentState):
+        time.sleep(1.5)
+        response = llm_with_tools.invoke(state["messages"])
+        return {"messages": [response]}
+
+    tool_node = ToolNode(tools=bound_tools)
+
+    builder = StateGraph(AgentState)
+    builder.add_node("agent", agent_node)
+    builder.add_node("tools", tool_node)
+    builder.add_edge(START, "agent")
+    builder.add_conditional_edges("agent", tools_condition)
+    builder.add_edge("tools", "agent")
+    graph = builder.compile()
+
+    # 3. Convert history dicts → LangChain message objects
+    lc_history: list[BaseMessage] = []
+    for msg in history:
+        if msg["role"] == "user":
+            lc_history.append(HumanMessage(content=msg["content"]))
+        elif msg["role"] == "assistant":
+            lc_history.append(AIMessage(content=msg["content"]))
+
+    # 4. Build the full messages list: system + history + new user message
+    today_str = date.today().isoformat()
+    all_messages: list[BaseMessage] = [
+        SystemMessage(content=SYSTEM_PROMPT.format(today=today_str)),
+        *lc_history,
+        HumanMessage(content=user_message),
+    ]
+
+    # 5. Run the ReAct loop — returns only when the graph hits END
+    final_state = graph.invoke({"messages": all_messages, "user_id": user_id})
+
+    # 6. Extract the final AI text (last message in state)
+    final_response = final_state["messages"][-1].content or "Done!"
+
+    # 7. Detect what tools were called (for frontend refresh signals)
+    action_taken = _detect_action(final_state["messages"])
+
+    return final_response, action_taken

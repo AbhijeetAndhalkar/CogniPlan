@@ -16,15 +16,25 @@
   These are already in your original index.html.
 */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+const { useState, useEffect, useRef, useCallback } = React;
 
 // ─── CONFIG ────────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://ftzaiphsficsylkntqjw.supabase.co";
 const SUPABASE_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0emFpcGhzZmljc3lsa250cWp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4Mzc3MTksImV4cCI6MjA5MDQxMzcxOX0.nK7gwwcQeKQKwlGCS0uxjBhMW12wFIPMaPBU_Mv19yQ";
-// Toggle between local dev and production:
-const API_BASE_URL = "http://localhost:8000";
-// const API_BASE_URL = "https://cogniplan-siaf.onrender.com";
+
+// ─── DYNAMIC API BASE URL ──────────────────────────────────────────────────────
+// Stored in localStorage so the choice survives a page refresh.
+// 'local'  → http://localhost:8000  (backend running on this machine)
+// 'prod'   → Render cloud backend
+const API_URLS = {
+  local: "http://localhost:8000",
+  prod:  "https://cogniplan-siaf.onrender.com",
+};
+function getApiBaseUrl() {
+  const env = localStorage.getItem("cogniplan_env") || "local";
+  return API_URLS[env] || API_URLS.local;
+}
 
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
@@ -45,19 +55,58 @@ function getSupabase() {
 }
 
 // ─── API HELPER ────────────────────────────────────────────────────────────────
+// Reads getApiBaseUrl() at call time so switching env takes effect immediately.
 async function api(method, endpoint, body = null) {
   const token = localStorage.getItem("flowboard_auth_token");
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const options = { method, headers };
   if (body) options.body = JSON.stringify(body);
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+  const response = await fetch(`${getApiBaseUrl()}${endpoint}`, options);
   if (!response.ok) {
     const err = new Error(`API Error: ${response.status}`);
     err.status = response.status;
     throw err;
   }
   return response.json();
+}
+
+// ─── ENV TOGGLE COMPONENT ──────────────────────────────────────────────────────
+function EnvToggle() {
+  const [env, setEnv] = useState(localStorage.getItem("cogniplan_env") || "local");
+
+  const toggle = () => {
+    const next = env === "local" ? "prod" : "local";
+    localStorage.setItem("cogniplan_env", next);
+    setEnv(next);
+  };
+
+  const isLocal = env === "local";
+  return (
+    <button
+      id="env-toggle-btn"
+      title={isLocal ? "Using local backend (localhost:8000) — click to switch to Render" : "Using Render cloud backend — click to switch to localhost"}
+      onClick={toggle}
+      style={{
+        display: "flex", alignItems: "center", gap: 6,
+        padding: "4px 10px", borderRadius: 20, border: "1.5px solid",
+        borderColor: isLocal ? "#10b981" : "#6366f1",
+        background: isLocal ? "rgba(16,185,129,0.12)" : "rgba(99,102,241,0.12)",
+        color: isLocal ? "#10b981" : "#a5b4fc",
+        fontSize: 11, fontWeight: 700, cursor: "pointer",
+        letterSpacing: "0.04em", transition: "all 0.2s",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span style={{
+        width: 7, height: 7, borderRadius: "50%",
+        background: isLocal ? "#10b981" : "#6366f1",
+        display: "inline-block",
+        boxShadow: isLocal ? "0 0 6px #10b981" : "0 0 6px #6366f1",
+      }} />
+      {isLocal ? "LOCAL" : "PROD"}
+    </button>
+  );
 }
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -647,8 +696,8 @@ function ChatWindow({ isOpen, onClose, onRefreshHabits }) {
       const data = await api("POST", "/api/chat", { message: text });
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
       appendMessage("ai", data.response);
-      if (data.action_taken === "refresh_habits") onRefreshHabits();
-      if (data.action_taken === "refresh_todos" && window.__loadTodos) window.__loadTodos();
+      if (data.action_taken === "refresh_habits" || data.action_taken === "refresh_all") onRefreshHabits();
+      if ((data.action_taken === "refresh_todos" || data.action_taken === "refresh_all") && window.__loadTodos) window.__loadTodos();
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
       appendMessage("ai", "❌ Error connecting to AI. Is the server awake?");
@@ -715,7 +764,7 @@ function ChatWindow({ isOpen, onClose, onRefreshHabits }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function App() {
+function App() {
   const [authed, setAuthed] = useState(false);
   const [matrixData, setMatrixData] = useState(null);
   const [matrixLoading, setMatrixLoading] = useState(false);
@@ -729,24 +778,67 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [profileInitial, setProfileInitial] = useState("");
 
-  // Check auth on mount
+  // ── Auth state listener ───────────────────────────────────────────────────────
+  // onAuthStateChange fires on page load with the current session state.
+  // If the refresh token is invalid/expired, Supabase emits SIGNED_OUT so we
+  // clear storage and drop back to the login screen — no red error bar.
   useEffect(() => {
-    const token = localStorage.getItem("flowboard_auth_token");
-    if (token && !isTokenExpired(token)) {
-      setAuthed(true);
-      loadProfileInitial();
-    } else if (token) {
-      localStorage.removeItem("flowboard_auth_token");
+    const sb = getSupabase();
+    if (!sb) {
+      // Supabase CDN not ready yet — fall back to the JWT check
+      const token = localStorage.getItem("flowboard_auth_token");
+      if (token && !isTokenExpired(token)) {
+        setAuthed(true);
+        loadProfileInitial();
+      } else if (token) {
+        localStorage.removeItem("flowboard_auth_token");
+      }
+      return;
     }
+
+    const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        const token = session?.access_token;
+        if (token) {
+          localStorage.setItem("flowboard_auth_token", token);
+          setAuthed(true);
+          loadProfileInitial();
+        }
+      } else if (event === "SIGNED_OUT" || event === "USER_DELETED") {
+        // Refresh token invalid or user signed out — clear everything and show login
+        localStorage.removeItem("flowboard_auth_token");
+        setAuthed(false);
+        setMatrixData(null);
+        setProfileInitial("");
+      } else if (event === "INITIAL_SESSION") {
+        if (session?.access_token) {
+          localStorage.setItem("flowboard_auth_token", session.access_token);
+          setAuthed(true);
+          loadProfileInitial();
+        } else {
+          // No valid session — clear any stale token
+          localStorage.removeItem("flowboard_auth_token");
+          setAuthed(false);
+        }
+      }
+    });
+
+    return () => subscription?.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadProfileInitial = async () => {
     const sb = getSupabase();
     if (!sb) return;
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) return;
-    const { data: profile } = await sb.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
-    if (profile?.full_name) setProfileInitial(profile.full_name.charAt(0).toUpperCase());
+    try {
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await sb.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+      if (profile?.full_name) setProfileInitial(profile.full_name.charAt(0).toUpperCase());
+    } catch (e) {
+      // Silently ignore — profile initial is cosmetic
+      console.warn("Could not load profile initial:", e.message);
+    }
   };
 
   // BUG 7 fix: wrap in useCallback so the function identity is stable.
@@ -846,6 +938,7 @@ export default function App() {
             <button id="btn-next-month" className="nav-btn" aria-label="Next month" onClick={handleNextMonth}>›</button>
           </div>
           <div className="header-actions">
+            <EnvToggle />
             <button id="btn-add-habit" className="btn-primary" onClick={() => setShowHabitModal(true)}>+ Habit</button>
             <div className="streak-badge" id="top-streak-badge">🔥 <span id="top-streak">{topStreak}</span> day streak</div>
             {profileInitial && (
@@ -942,3 +1035,6 @@ export default function App() {
     </>
   );
 }
+
+// Ensure App is globally accessible for the mounting script in index-react.html
+window.App = App;

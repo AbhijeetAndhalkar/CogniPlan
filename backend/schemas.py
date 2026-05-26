@@ -67,12 +67,12 @@ HabitResponse = HabitOut
 # exactly two things: the ID of the habit, and the date they clicked.
 class ToggleHabitRequest(BaseModel):
     habit_id: int
-    date: date
+    log_date: date  # renamed from 'date' — the field name 'date' shadowed the type
 
 # What we send back to confirm the habit was toggled successfully.
 class ToggleHabitResponse(BaseModel):
     habit_id: int
-    date: date
+    log_date: date  # renamed from 'date' to match request schema
     status: bool
 
 

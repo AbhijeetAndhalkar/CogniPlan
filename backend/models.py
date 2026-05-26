@@ -1,6 +1,7 @@
 from datetime import datetime, date
 from sqlalchemy import Boolean, Column, Integer, String, Date, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
+from pgvector.sqlalchemy import Vector  # Vector column type for semantic search
 
 from database import Base
 # create the structure of tables like the blueprint
@@ -13,6 +14,7 @@ class Todo(Base):
     title = Column(String, nullable=False)
     is_completed = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    embedding = Column(Vector(768), nullable=True)  # 768-dim semantic vector (all-mpnet-base-v2)
 
 
 class Habit(Base):
