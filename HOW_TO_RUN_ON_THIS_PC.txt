@@ -24,9 +24,9 @@ To ensure the app runs correctly, keep the files organized as follows:
 
 /backend: Contains main.py, models.py, and your .env (connected to Supabase).
 
-/docs: Contains your frontend (index.html, style.css, app.js).
+/docs: Contains your frontend (index-react.html, style.css, CogniPlan.jsx).
 
-Note: We use the docs folder instead of frontend so the app works both locally and on GitHub Pages.
+Note: We use the docs folder instead of a frontend folder so the app works both locally and on GitHub Pages.
 
 ☁️ DATABASE STATUS
 Provider: Supabase (PostgreSQL)
@@ -44,10 +44,10 @@ Auto-Sync: Tables are automatically checked/created every time the backend start
 This project is configured to be hosted live using GitHub Pages (frontend) and Render (backend).
 
 To make your changes live for the world, follow these steps:
-1. Open docs/app.js.
-2. Locate the "CORE API FETCHER" section (around line 37).
+1. Open docs/CogniPlan.jsx.
+2. Locate the "CORE API FETCHER" section (or the API_BASE_URL constant).
 3. Comment out the localhost URL by adding `//` before it:
-   // const API_BASE_URL = "http://localhost:8000";
+   // const API_BASE_URL = "http://127.0.0.1:8000";
 4. Uncomment the onrender.com URL by removing the `//`:
    const API_BASE_URL = 'https://cogniplan-siaf.onrender.com';
 5. Save the file.
@@ -60,30 +60,30 @@ To make your changes live for the world, follow these steps:
 💻 HOW TO RUN LOCALLY (DEVELOPMENT)
 Whenever you want to build a new feature or test a change locally on your machine:
 
-1. Open docs/app.js.
+1. Open docs/CogniPlan.jsx.
 2. Comment out the production URL:
    // const API_BASE_URL = 'https://cogniplan-siaf.onrender.com';
 3. Uncomment the localhost URL:
-   const API_BASE_URL = "http://localhost:8000";
+   const API_BASE_URL = "http://127.0.0.1:8000";
 4. Save the file.
 5. Start the backend: Open terminal, navigate to the tracker folder, and run:
    cd backend
    .\.venv\Scripts\Activate.ps1
    uvicorn main:app --reload
-6. Open docs/index.html with VS Code Live Server.
+6. Open docs/index-react.html with VS Code Live Server.
 7. Start coding!
 
 ☁️ THE SHARED DATABASE MAGIC
-Both your local laptop and your live Render server point to the exact same Supabase database in the cloud. Data isn't saved on your laptop or on Render—it's saved in Supabase. So, no matter where you access the backend from, you are looking at the exact same data.
+Both your local laptop and your live Render server point to the exact same Supabase database in the cloud. Data isn't saved exclusively on your laptop—it's saved in Supabase. So, no matter where you access the backend from, you are looking at the exact same data.
 
 Stop the server: Go to your terminal and press CTRL + C to stop FastAPI.
 
-Delete the database: Go to your VS Code file explorer on the left side, right-click the productivity.db file, and hit Delete. (Don't worry, your SQLAlchemy code will automatically rebuild the empty tables the next time it runs).
+Database management: Since we are using Supabase (PostgreSQL), data is safely stored in the cloud. You no longer need to delete a local `.db` file to reset data. You can manage your tables directly in the Supabase Dashboard online.
 
-Run the seed script: In your terminal, make sure you are in the main Tracker folder (not inside the backend folder, because your code says from backend.database...), and run this exact command:
+Run the seed script (if needed): In your terminal, make sure you are in the main Tracker folder (not inside the backend folder, because your code says from backend.database...), and run this exact command:
 
 Bash
 python -m backend.seed
 The Result: The terminal will print: ✅ Seeded 5 habits and 5 todos successfully.
 
-Start the server again: Run your uvicorn command, refresh your browser, and the frontend will instantly have 30 days of data.
+Start the server again: Run your uvicorn command, refresh your browser, and the frontend will instantly have data.

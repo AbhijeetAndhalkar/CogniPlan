@@ -42,12 +42,12 @@ This creates a `.venv/` folder in the project root.
 
 **Windows (PowerShell):**
 ```powershell
-.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 ```
 
 **Windows (Command Prompt):**
 ```cmd
-.venv\Scripts\activate.bat
+.\.venv\Scripts\activate.bat
 ```
 
 ✅ When activated, your terminal prompt will show `(.venv)` at the start.
@@ -60,11 +60,11 @@ This creates a `.venv/` folder in the project root.
 pip install -r backend\requirements.txt
 ```
 
-This installs: FastAPI, Uvicorn, SQLAlchemy, Pydantic, Groq, Pinecone, and all other required packages.
+This installs: FastAPI, Uvicorn, SQLAlchemy, Pydantic, Groq, SentenceTransformers, and all other required packages.
 
 ---
 
-## Step 5 — Configure API Keys
+## Step 5 — Configure API Keys and Database
 
 Copy the example env file and fill in your real keys:
 
@@ -76,18 +76,18 @@ Then open `backend\.env` in a text editor and fill in:
 
 ```env
 GROQ_API_KEY="your_groq_key_here"
-PINECONE_API_KEY="your_pinecone_key_here"
+DATABASE_URL="postgresql://postgres.[your-project]:[password]@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
 SUPABASE_JWT_SECRET="your_supabase_jwt_secret_here"
 ```
 
 | Key | Where to get it |
 |---|---|
 | `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) → API Keys |
-| `PINECONE_API_KEY` | [app.pinecone.io](https://app.pinecone.io) → API Keys |
+| `DATABASE_URL` | Supabase Dashboard → Project Settings → Database → Connection String (URI) |
 | `SUPABASE_JWT_SECRET` | Supabase Dashboard → Project Settings → API → JWT Secret |
 
 > [!NOTE]
-> The AI Chat and memory features require Groq and Pinecone keys. The rest of the app (Todos, Habits, Analytics) works without them.
+> The AI Chat features require the Groq key. User auth and data storage require the Supabase keys.
 
 ---
 
@@ -96,9 +96,7 @@ SUPABASE_JWT_SECRET="your_supabase_jwt_secret_here"
 If you want to start with some pre-filled habits and todos:
 
 ```powershell
-cd backend
-python seed.py
-cd ..
+python -m backend.seed
 ```
 
 ---
@@ -146,7 +144,7 @@ Every time you come back to the project:
 
 ```powershell
 # 1. Activate the venv (from project root)
-.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 
 # 2. Start the server
 cd backend
@@ -163,4 +161,4 @@ python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
 | `ModuleNotFoundError: No module named 'database'` | Make sure you `cd backend` before running uvicorn |
 | `Address already in use` on port 8000 | Change port: add `--port 8001` to the uvicorn command |
 | AI Chat returns an error | Check that `GROQ_API_KEY` is set correctly in `backend\.env` |
-| Page shows JSON instead of UI | Make sure you opened `http://127.0.0.1:8000` not a different route |
+| Database connection fails | Check your `DATABASE_URL` string in `backend\.env` |

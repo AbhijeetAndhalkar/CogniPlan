@@ -1,65 +1,52 @@
-# Project Workflow: 100% Local Document Q&A AI
+# 🧠 Tracker (FlowBoard / CogniPlan) Project Workflow
 
-This document explains exactly how our Local Document Q&A AI works from start to finish. It is written in simple language so you can easily understand the process and explain it during an interview.
-
----
-
-## 🛠️ The Tech Stack (What we are using)
-
-To make this project work, we use a combination of tools that act as different parts of a machine:
-
-1. **Frontend (The User Interface)**: This is what the user sees. It's built with HTML, CSS, and JavaScript. It provides a simple webpage where users can upload a PDF and type their questions.
-2. **Backend (The Brain/Bridge)**: We use **FastAPI** (a Python framework). It receives the PDF from the frontend, processes it, and sends the final answer back to the user.
-3. **The LLM (Large Language Model)**: We use **Ollama** running the **Phi-3** model. Phi-3 is a smart but lightweight AI created by Microsoft that can run locally on your computer without needing the internet. It acts as the "speaker" that reads the text and answers the questions.
-4. **Embeddings Model**: An AI model used to convert text into numbers (vectors) so the computer can understand the *meaning* of sentences.
-5. **Vector Database**: A special type of database used to store those numbers (embeddings) so we can search through them instantly.
+## 🌟 What is this project?
+This project is an AI-powered Productivity Dashboard. It allows users to manage their daily habits and one-off tasks (to-dos) using a natural language chat interface. The backend API runs locally on your computer, while the AI's reasoning uses the Groq API and user data/authentication is securely handled by Supabase (PostgreSQL).
 
 ---
 
-## 📖 Real-World Example: What happens when you insert a PDF?
+## 🛠️ The Tech Stack (What are we using?)
 
-Imagine you have a 50-page PDF about "The Rules of Chess." You upload it to the app and ask: *"How does the Knight move?"*
+Here is the exact list of tools and models used in this project. You can mention these in an interview:
 
-Here is the exact step-by-step workflow of what happens behind the scenes:
-
-### Step 1: Uploading and Reading (Text Extraction)
-When you insert the PDF, the frontend sends the file to the FastAPI backend. The backend uses a library to read all 50 pages and extract the raw text out of the document.
-
-### Step 2: Chunking (Breaking it down)
-The AI model (Phi-3) cannot read a 50-page book all at once—it has a limited "memory" (called context window). 
-To solve this, the backend chops the 50 pages of text into smaller, manageable paragraphs called **"chunks."** 
-*(Think of it like cutting a long book into individual flashcards).*
-
-### Step 3: Creating Embeddings (Turning words into meaning)
-Computers are bad at understanding words, but great at math. The system takes every single "chunk" (flashcard) and passes it through an **Embedding Model**. 
-This model turns the text into a long list of numbers (a vector). These numbers represent the *actual meaning* of the text. So, sentences about "horses" and "knights" will have numbers that look mathematically similar.
-
-### Step 4: Storage (The Vector Database)
-All these chunks and their mathematical numbers are saved into a **Vector Database**. Now the PDF is fully processed and ready for questions!
+1. **Frontend (The User Interface):** **React** (loaded directly in the browser) with HTML, CSS, and JavaScript.
+2. **Backend (The Server):** Python with **FastAPI**. It handles the logic and talks to the database.
+3. **Database & Auth:** **Supabase (PostgreSQL)**. It manages user authentication (login/signup) and stores all tasks, habits, and user profiles in a cloud Postgres database. (We use **SQLAlchemy** in Python to talk to it).
+4. **AI Framework:** **LangGraph** & **LangChain**. These create a "thinking loop" for the AI (called a ReAct agent) so it can decide which tools to use.
+5. **LLM (The Brain):** **LLaMA 3.3 70B** (accessed via the **Groq API**). This is the large language model that understands the user's chat messages.
+6. **Embedding Model:** **`all-mpnet-base-v2`** (via the **SentenceTransformers** library). This model converts text into numbers (vectors) so the AI can search through past tasks by their "meaning" rather than just exact word matches.
 
 ---
 
-## ❓ What happens when you ask a question?
+### 💡 Interview Tip: LangChain vs. LangGraph
+If an interviewer asks, *"Are you using only LangGraph or both, and can you remove LangChain?"*, you should explain that they are two halves of the same ecosystem and **must be used together**:
+- **LangChain (The Engine):** You use it to connect to the Groq API, format chat messages, and define your custom Python tools (like `add_todo`). 
+- **LangGraph (The Driver):** You use it to build the actual "Reason + Act" loop. It controls the flow, tells the AI when to think, when to trigger a tool, and when to return the final answer.
+Because LangGraph relies on LangChain's building blocks to function, you cannot remove LangChain without breaking LangGraph.
 
-Now you type the question: *"How does the Knight move?"*
 
-### Step 5: Converting the Question
-Just like we did with the PDF, the backend takes your question and passes it through the Embedding Model to turn your question into a list of numbers.
+### Example: The user types, *"Remind me to prep for my interview tomorrow"*
 
-### Step 6: Similarity Search (Finding the needle in the haystack)
-The Vector Database performs a lightning-fast mathematical comparison. It compares the numbers of your question against the numbers of all the PDF chunks. 
-It finds the top 3 or 4 chunks that are the closest match. In this case, it finds the exact paragraph explaining that the Knight moves in an "L-shape."
+**Step 1: The User Sends a Message (Frontend)**
+- The user types their request in the chatbox on the screen.
+- The frontend sends this text to the FastAPI backend (`/api/chat`).
 
-### Step 7: Generating the Answer (The AI steps in)
-The backend takes your original question AND the 3 matching text chunks it just found, and sends them both to the **Phi-3 AI model via Ollama**. 
-It essentially tells the AI: 
-*"Here is a user's question, and here are a few paragraphs from a book. Please read these paragraphs and answer the user's question."*
+**Step 2: The AI Starts Thinking (LangGraph ReAct Agent)**
+- The backend gives the message to **LangGraph**.
+- The **LLaMA 3.3** model (via Groq) looks at the message, realizes the user wants to add a task, and decides to use a specific tool called `add_todo`.
 
-### Step 8: Delivering the Result
-Phi-3 reads the context, generates a conversational, human-like answer (*"The Knight moves in an L-shape: two squares in one direction and then one square over..."*), and the backend sends this answer back to the frontend for you to see.
+**Step 3: Creating the Vector Embedding (AI Magic)**
+- Before saving the task, the backend uses the **SentenceTransformer** (`all-mpnet-base-v2` model) to turn the text *"prep for my interview tomorrow"* into a mathematical vector (a list of 768 numbers).
+- This is called a "semantic embedding." It allows the AI to find this task later even if you search for related words (like *"practice questions"*) instead of exact matches.
 
----
+**Step 4: Saving to Database (Supabase / PostgreSQL)**
+- The backend saves the text of the task and its vector numbers into the **Supabase PostgreSQL database** using SQLAlchemy.
 
-## 🎯 Summary for an Interview
-If an interviewer asks how the system works, you can say:
-> *"My project uses a Retrieval-Augmented Generation (RAG) architecture. When a user uploads a PDF, the text is extracted, split into chunks, converted into vector embeddings, and stored in a vector database. When the user asks a question, the system converts the question into an embedding, performs a similarity search to retrieve the most relevant document chunks, and passes that context to a local LLM (Ollama running Phi-3) to generate an accurate, hallucination-free answer."*
+**Step 5: The Agent Answers**
+- LangGraph realizes the tool finished successfully. The LLaMA model creates a friendly text reply: *"I've added the interview prep to your to-do list!"*
+- The backend also sends a hidden signal (like `refresh_todos`) back to the frontend to say something changed.
+
+**Step 6: The Screen Updates (Frontend)**
+- The frontend shows the AI's friendly reply in the chatbox.
+- Because it received the hidden signal, the frontend automatically refreshes the to-do list on the dashboard, and the new task appears instantly!
+

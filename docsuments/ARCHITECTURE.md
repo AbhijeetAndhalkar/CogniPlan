@@ -10,7 +10,7 @@ This document explains how FlowBoard works under the hood — how the pieces con
 ┌─────────────────────────────────────────────────────────
 │                      BROWSER                             │
 │                                                          │
-│   index.html  ──►  app.js  ──►  style.css                │
+│index-react.html ──► CogniPlan.jsx ──►  style.css         │
 │       │               │                                  │
 │       │         fetch() API calls                        │
 └───────┼───────────────┼──────────────────────────────────┘
@@ -24,10 +24,10 @@ This document explains how FlowBoard works under the hood — how the pieces con
 │      ├──► models.py  (ORM table classes)                 │
 │      │        │                                          │
 │      │        ▼                                          │
-│      │   database.py  ──►  productivity.db (SQLite)      │
+│      │   database.py  ──►  Supabase (PostgreSQL)         │
 │      │                                                   │
 │      └──► agent.py  ──►  Groq API (LLaMA 3.3 70B)        │
-│                    └──►  Pinecone (vector memory)        │
+│                    └──►  SentenceTransformers (embeds)   │
 └─────────────────────────────────────────────────────────┘
         │
         ▼
@@ -40,23 +40,23 @@ This document explains how FlowBoard works under the hood — how the pieces con
 
 ### 1. Browser ↔ FastAPI (HTTP)
 
-The frontend (`app.js`) communicates with the backend exclusively through **REST API calls** using the browser's built-in `fetch()`. There is no separate frontend build step — FastAPI serves the HTML/CSS/JS files directly as static files.
+The frontend (`CogniPlan.jsx`) communicates with the backend exclusively through **REST API calls** using the browser's built-in `fetch()`. It runs React 18 loaded directly in the browser via Babel standalone. FastAPI serves the HTML/CSS/JS files directly as static files.
 
-- `GET /` → Returns `frontend/index.html`
-- `/static/app.js`, `/static/style.css` → Served from the `frontend/` folder
+- `GET /` → Returns `docs/index-react.html`
+- `/static/*` → Serves files from the `docs/` folder
 - All data endpoints (todos, habits, analytics) are JSON APIs
 
-### 2. FastAPI ↔ SQLite (SQLAlchemy ORM)
+### 2. FastAPI ↔ Supabase (SQLAlchemy ORM)
 
-FastAPI routes never write raw SQL. Instead they use **SQLAlchemy sessions** (provided by `database.py`) to query `models.py` ORM classes which map directly to SQLite tables.
+FastAPI routes never write raw SQL. Instead they use **SQLAlchemy sessions** (provided by `database.py`) to query `models.py` ORM classes which map directly to PostgreSQL tables in Supabase. Supabase also handles JWT user authentication.
 
 ### 3. FastAPI ↔ Groq AI (HTTP)
 
-When the `/api/chat` endpoint is hit, `main.py` calls `agent.run_dispatcher()`. This sends the user's message to the **Groq API** (cloud LLM). The LLM decides whether to use a tool (create a todo, mark a habit done) or just chat. The result comes back and is returned to the frontend.
+When the `/api/chat` endpoint is hit, `main.py` calls `agent.run_agent()`. This sends the user's message to the **Groq API** (cloud LLM). The LLM decides whether to use a tool (create a todo, mark a habit done) or just chat. The result comes back and is returned to the frontend.
 
-### 4. Agent ↔ Pinecone (Vector Memory)
+### 4. Agent ↔ SentenceTransformers (Vector Embeddings)
 
-Each chat message is stored as a vector in **Pinecone** so the AI can theoretically recall past context. Currently uses a placeholder zero-vector (production would use a real embedding model).
+When tasks are created, a local `SentenceTransformer` model (`all-mpnet-base-v2`) converts the text into a vector embedding. This is saved directly into the database row alongside the task text, allowing the AI to search past tasks by meaning instead of needing an external vector database like Pinecone.
 
 ---
 
@@ -69,8 +69,8 @@ Each chat message is stored as a vector in **Pinecone** so the AI can theoretica
 
 | Endpoint | Method | What it does |
 |---|---|---|
-| `/` | GET | Serves `frontend/index.html` |
-| `/static/*` | GET | Serves CSS, JS files |
+| `/` | GET | Serves `docs/index-react.html` |
+| `/static/*` | GET | Serves CSS, JS, JSX files |
 | `/todos/` | GET, POST | List all todos / Create a new todo |
 | `/todos/{id}/toggle` | PUT | Mark a todo complete/incomplete |
 | `/todos/{id}` | DELETE | Delete a todo |
@@ -81,17 +81,12 @@ Each chat message is stored as a vector in **Pinecone** so the AI can theoretica
 
 Also configures:
 - **CORS** (allows any origin for local dev)
-- **Static file serving** from `../frontend/`
-- **Database table auto-creation** on startup
+- **Static file serving** from `../docs/`
 
 ---
 
 #### `database.py` — Database Connection
-**Role:** Creates the SQLite database engine and session factory. Provides `get_db()` — a FastAPI dependency that automatically opens and closes a DB session per request.
-
-```
-SQLite file: backend/productivity.db  (auto-created on first run)
-```
+**Role:** Creates the Supabase PostgreSQL database engine and session factory. Provides `get_db()` — a FastAPI dependency that automatically opens and closes a DB session per request.
 
 ---
 
@@ -100,7 +95,7 @@ SQLite file: backend/productivity.db  (auto-created on first run)
 
 | Class | Table | Columns |
 |---|---|---|
-| `Todo` | `todos` | id, title, is_completed, created_at |
+| `Todo` | `todos` | id, title, is_completed, created_at, embedding |
 | `Habit` | `habits` | id, title, frequency, color_theme, is_active, created_at |
 | `HabitLog` | `habit_logs` | id, habit_id (FK), date, status |
 
@@ -122,12 +117,13 @@ SQLite file: backend/productivity.db  (auto-created on first run)
 #### `agent.py` — AI Intelligence Engine
 **Role:** The AI brain. When the user sends a chat message, this file:
 
-1. **Stores the message** in Pinecone (vector memory for future recall)
+1. **Calculates semantic embeddings** using local `SentenceTransformers` when saving new tasks.
 2. **Calls Groq API** with the user message and a set of available tools:
-   - `create_agent_todo(title)` → Creates a new Todo in the DB
-   - `mark_habit_done(habit_title, log_date)` → Marks a habit complete for a date
-3. **Executes whichever tool** the LLM chose to call
-4. **Returns a plain-English summary** back to the frontend
+   - `add_todo(todo_text)` → Creates a new Todo in the DB with an embedding
+   - `mark_habit_done(name, log_date)` → Marks a habit complete for a date
+   - `search_past_tasks(query)` → Searches the database for similar vectors
+3. **Executes whichever tool** the LLM chose to call via LangGraph.
+4. **Returns a plain-English summary** and a frontend refresh signal back to `main.py`.
 
 Model used: `llama-3.3-70b-versatile` via Groq
 
@@ -139,16 +135,17 @@ Model used: `llama-3.3-70b-versatile` via Groq
 ---
 
 #### `requirements.txt` — Python Dependencies
-**Role:** Lists all packages needed. Run `pip install -r requirements.txt` to install everything.
+**Role:** Lists all packages needed. Run `pip install -r backend/requirements.txt` to install everything.
 
 Key packages:
 - `fastapi` — Web framework
 - `uvicorn[standard]` — ASGI server (runs FastAPI)
-- `sqlalchemy` — ORM for SQLite
+- `sqlalchemy` — ORM for Database queries
 - `pydantic` — Data validation
 - `python-dotenv` — Loads `.env` secret keys
 - `groq` — Groq LLM client
-- `pinecone` — Vector DB client
+- `sentence-transformers` — Local vector embeddings
+- `langgraph`, `langchain` — AI agent orchestration
 
 ---
 
@@ -157,26 +154,23 @@ Key packages:
 
 ```
 GROQ_API_KEY        → Authenticates calls to Groq AI
-PINECONE_API_KEY    → Authenticates calls to Pinecone vector DB
+DATABASE_URL        → Connects to the Supabase PostgreSQL database
 SUPABASE_JWT_SECRET → Used to verify user login tokens
 ```
 
 ---
 
-### 📁 `frontend/`
+### 📁 `docs/`
 
-#### `index.html` — Page Shell
+#### `index-react.html` — Page Shell
 **Role:** The single HTML file for the entire app. Contains:
-- The **auth overlay** (login/signup card) shown on top until the user logs in
-- The **dashboard layout** behind the overlay: habit matrix, todo list, AI chat panel, analytics rings
-- Links to `style.css` and `app.js`
-
-No framework, no build step — plain HTML.
+- Error logging and Babel standalone loader configuration.
+- The root DOM element for React to attach to.
 
 ---
 
-#### `app.js` — All Frontend Logic
-**Role:** The entire client-side brain (~700+ lines). Responsible for:
+#### `CogniPlan.jsx` — All Frontend Logic
+**Role:** The entire client-side brain written in React. Responsible for:
 
 - **Auth flow** — Calls Supabase to sign in / sign up. Hides the login overlay on success.
 - **Todos** — Fetches todos from `/todos/`, renders the list, handles add/toggle/delete.
@@ -184,8 +178,6 @@ No framework, no build step — plain HTML.
 - **Habit Matrix** — Calls `/analytics/matrix` to get the full month grid and renders it as a checkbox table with colored streaks.
 - **AI Chat** — Sends user messages to `/api/chat` and displays the AI's reply in the chat panel.
 - **Analytics Rings** — Calculates and renders circular SVG progress rings per habit.
-
-All API calls target `http://127.0.0.1:8000` (the local FastAPI server).
 
 ---
 
@@ -198,12 +190,13 @@ All API calls target `http://127.0.0.1:8000` (the local FastAPI server).
 
 ---
 
-### 📁 `docs/`
+### 📁 `docsuments/`
 
 | File | Purpose |
 |---|---|
 | `SETUP.md` | Step-by-step guide to run the project from scratch |
 | `ARCHITECTURE.md` | This file — explains how the system works |
+| `ARCHITECTURE_WORKFLOW.md` | Explains data flow and deployment loop |
 
 ---
 
@@ -213,26 +206,25 @@ All API calls target `http://127.0.0.1:8000` (the local FastAPI server).
 User types: "Add a task to review my notes"
          │
          ▼
-app.js → POST /api/chat { message: "Add a task to review my notes" }
+CogniPlan.jsx → POST /api/chat { message: "Add a task to review my notes" }
          │
          ▼
-main.py → agent.run_dispatcher(message, db)
-         │
-         ├─► Pinecone: store message vector
+main.py → agent.run_agent(message, db)
          │
          ├─► Groq API: "Given tools available, what should I do?"
-         │       └─► LLM responds: call create_agent_todo("review my notes")
+         │       └─► LLM responds: call add_todo("review my notes")
          │
-         ├─► agent.create_agent_todo(db, "review my notes")
-         │       └─► models.Todo inserted into productivity.db
+         ├─► agent.add_todo(db, "review my notes")
+         │       ├─► SentenceTransformer: generate embedding vector
+         │       └─► models.Todo inserted into Supabase DB
          │
-         └─► Returns: "Created Todo: review my notes"
-         │
-         ▼
-app.js receives reply → displays in chat panel
+         └─► Returns: "Created Todo: review my notes", action="refresh_todos"
          │
          ▼
-app.js refreshes todo list → GET /todos/ → new todo appears in UI
+CogniPlan.jsx receives reply → displays in chat panel
+         │
+         ▼
+CogniPlan.jsx refreshes todo list → GET /todos/ → new todo appears in UI
 ```
 
 ---
@@ -243,10 +235,10 @@ app.js refreshes todo list → GET /todos/ → new todo appears in UI
 User opens the dashboard (or navigates to the habit section)
          │
          ▼
-app.js → GET /analytics/matrix?year=2026&month=3
+CogniPlan.jsx → GET /analytics/matrix?year=2026&month=3
          │
          ▼
-main.py queries:
+main.py queries Supabase:
   - All active Habits from habits table
   - All HabitLogs for March 2026 from habit_logs table
   - Gap-fills missing days as False
@@ -257,7 +249,7 @@ main.py queries:
 Returns JSON: { year, month, days: [1..31], habits: [ {title, logs: {"1": true, "2": false, ...}, streak, completion_pct} ] }
          │
          ▼
-app.js renders a table: one row per habit, one column per day
+CogniPlan.jsx renders a table: one row per habit, one column per day
 Completed days → colored checkbox ✅
 Incomplete days → empty checkbox ☐
 ```
