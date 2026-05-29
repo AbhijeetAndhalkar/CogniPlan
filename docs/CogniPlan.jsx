@@ -485,7 +485,7 @@ function HabitGrid({ data, currentYear, currentMonth, onRefresh, showToast }) {
       <table className="habit-table">
         <thead>
           <tr className="day-header-row">
-            <th style={{ minWidth: 150, position: "sticky", left: 0, zIndex: 12, backgroundColor: "#111827" }} />
+            <th style={{ minWidth: 150, position: "sticky", left: 0, zIndex: 12, backgroundColor: "#0f0f1e" }} />
             {days.map((d) => (
               <th key={d} className={d === today ? "today-header" : ""}>{d}</th>
             ))}
@@ -496,7 +496,7 @@ function HabitGrid({ data, currentYear, currentMonth, onRefresh, showToast }) {
           {habits.map((habit) => (
             <tr key={habit.id} className="habit-row" data-habit-id={habit.id}>
               <td className="habit-label-cell"
-                style={{ position: "sticky", left: 0, zIndex: 11, backgroundColor: "#111827", boxShadow: "2px 0 5px rgba(0,0,0,0.3)" }}>
+                style={{ position: "sticky", left: 0, zIndex: 11, backgroundColor: "#0f0f1e", boxShadow: "2px 0 5px rgba(0,0,0,0.3)" }}>
                 <div className="habit-label-inner">
                   <span className="habit-dot" style={{ background: habit.color_theme }} />
                   <span className="habit-name" title={habit.title}>{habit.title}</span>
@@ -777,6 +777,7 @@ function App() {
   const [isTodoOpen, setIsTodoOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [profileInitial, setProfileInitial] = useState("");
+  const matrixScrollRef = useRef(null);
 
   // ── Auth state listener ───────────────────────────────────────────────────────
   // onAuthStateChange fires on page load with the current session state.
@@ -888,6 +889,14 @@ function App() {
     if (authed) loadMatrix();
   }, [authed, currentYear, currentMonth, loadMatrix]);
 
+  // Auto-scroll the habit matrix to the far right when data loads
+  // so the current date column is immediately visible.
+  useEffect(() => {
+    if (matrixData && matrixScrollRef.current) {
+      matrixScrollRef.current.scrollLeft = matrixScrollRef.current.scrollWidth;
+    }
+  }, [matrixData]);
+
   const handleLogin = (token) => {
     setAuthed(true);
     loadProfileInitial();
@@ -959,7 +968,7 @@ function App() {
             <h2 className="panel-title">Habit Matrix</h2>
             <p className="panel-subtitle">Click any cell to toggle completion</p>
           </div>
-          <div className="grid-wrapper" id="grid-wrapper">
+          <div ref={matrixScrollRef} className="grid-wrapper" id="grid-wrapper">
             {matrixLoading ? (
               <div className="grid-loading" id="grid-loading">
                 <div className="spinner" style={{ margin: "0 auto 12px" }} />

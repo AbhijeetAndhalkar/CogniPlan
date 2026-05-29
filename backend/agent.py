@@ -110,9 +110,9 @@ def make_tools(user_id: str, db: Session) -> list:
         return f"✅ Added to To-Do list: '{todo_text}'"
 
     @tool
-    def mark_habit_done(name: str, log_date: str) -> str:
+    def mark_habit_done(name: str, log_date: str = None) -> str:
         """Mark a recurring habit as completed for a specific date (YYYY-MM-DD).
-        Use today's date if the user does not specify one."""
+        If the user does not specify a date, leave log_date empty and it will default to today."""
         habit = (
             db.query(models.Habit)
             .filter(
@@ -123,9 +123,14 @@ def make_tools(user_id: str, db: Session) -> list:
         )
         if not habit:
             return f"⚠️ No habit found matching '{name}'."
-        try:
-            parsed_date = date.fromisoformat(log_date)
-        except Exception:
+
+        # Safely handle the date parsing
+        if log_date:
+            try:
+                parsed_date = date.fromisoformat(log_date)
+            except Exception:
+                parsed_date = date.today()
+        else:
             parsed_date = date.today()
 
         log = (
@@ -209,61 +214,31 @@ def make_tools(user_id: str, db: Session) -> list:
 
     @tool
     def get_daily_agenda() -> str:
-        """Pulls a combined list of pending tasks and active habits for a morning briefing."""
-        todos = db.query(models.Todo).filter(models.Todo.user_id == user_id, models.Todo.is_completed == False).all()
-        habits = db.query(models.Habit).filter(models.Habit.user_id == user_id, models.Habit.is_active == True).all()
+        """Retrieves a combined list of all pending to-do tasks and active habits for today."""
+        pending_tasks = db.query(models.Todo).filter(models.Todo.user_id == user_id, models.Todo.is_completed == False).all()
+        active_habits = db.query(models.Habit).filter(models.Habit.user_id == user_id, models.Habit.is_active == True).all()
         
-        agenda = ["Here is your daily agenda:"]
-        agenda.append("\n**Pending Tasks:**")
-        if not todos:
-            agenda.append("No pending tasks!")
-        else:
-            for t in todos:
-                agenda.append(f"- [ ] {t.title}")
-                
-        agenda.append("\n**Active Habits:**")
-        if not habits:
-            agenda.append("No active habits!")
-        else:
-            for h in habits:
-                agenda.append(f"- {h.title}")
-                
-        return "\n".join(agenda)
+        task_list = [f"- Task: {t.title}" for t in pending_tasks]
+        habit_list = [f"- Habit: {h.title}" for h in active_habits]
+        
+        if not task_list and not habit_list:
+            return "Your agenda is completely clear today!"
+        return "PENDING TASKS:\n" + "\n".join(task_list) + "\n\nACTIVE HABITS:\n" + "\n".join(habit_list)
 
     @tool
     def get_progress_report() -> str:
-        """Checks the habit_logs table to report on what the user finished today and their streaks."""
+        """Checks the user's habit logs to see what they have completed today."""
         today = date.today()
-        
-        habits = db.query(models.Habit).filter(models.Habit.user_id == user_id, models.Habit.is_active == True).all()
-        if not habits:
-            return "No active habits to report on."
-            
-        report = [f"**Progress Report for {today.isoformat()}:**"]
-        
-        for h in habits:
-            logs = db.query(models.HabitLog).filter(
-                models.HabitLog.user_id == user_id,
-                models.HabitLog.habit_id == h.id,
-                models.HabitLog.status == True
-            ).all()
-            
-            dates_completed = {log.date for log in logs}
-            
-            status = "✅ Done" if today in dates_completed else "❌ Not done"
-            
-            streak = 0
-            d = today
-            if d not in dates_completed:
-                d = today - timedelta(days=1)
-                
-            while d in dates_completed:
-                streak += 1
-                d -= timedelta(days=1)
-                
-            report.append(f"- {h.title}: {status} (Streak: {streak} days)")
-            
-        return "\n".join(report)
+        logs_today = db.query(models.HabitLog).filter(
+            models.HabitLog.user_id == user_id,
+            models.HabitLog.date == today,
+            models.HabitLog.status == True,
+        ).all()
+
+        if not logs_today:
+            return "No habits logged yet today."
+        completed = [str(log.habit_id) for log in logs_today]
+        return f"Habit IDs completed today: {', '.join(completed)}."
 
     return [
         add_habit, delete_habit, get_habits, mark_habit_done, delete_all_habits,

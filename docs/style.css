@@ -43,14 +43,11 @@ html { font-size: 16px; scroll-behavior: smooth; overflow-x: hidden; width: 100%
 
 body {
   font-family: var(--font);
-  background: var(--bg-base);
   color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;
   width: 100%;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99,102,241,.12), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 110%, rgba(16,185,129,.08), transparent);
+  background: linear-gradient(135deg, #13111C 0%, #1D1934 50%, #13111C 100%);
 }
 
 /* ── Utility ─────────────────────────────────────────────────── */
@@ -68,10 +65,11 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(8,14,26,.85);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--border);
   padding: 0 2rem;
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .header-inner {
@@ -160,11 +158,13 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition);
-  box-shadow: 0 2px 8px rgba(99,102,241,.3);
+  background-color: #8b5cf6;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
 }
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(99,102,241,.45);
+  box-shadow: 0 4px 20px rgba(99,102,241,.6), 0 0 24px rgba(139,92,246,.35);
 }
 .btn-primary:active { transform: translateY(0); }
 .btn-full { width: 100%; padding: .75rem; }
@@ -201,11 +201,15 @@ body {
 
 /* ── Panel ───────────────────────────────────────────────────── */
 .panel {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
   padding: 1.5rem;
   overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border-radius: 16px;
 }
 
 .panel-header { margin-bottom: 1.25rem; }
@@ -222,7 +226,6 @@ body {
 }
 
 /* ── Sidebar ─────────────────────────────────────────────────── */
-/* Added padding-bottom to allow scrolling past the chat widget */
 .sidebar { display: flex; flex-direction: column; gap: 1.5rem; padding-bottom: 100px !important; }
 
 /* ══════════════════════════════════════════════════════════════
@@ -258,7 +261,9 @@ body {
 .day-header-row th:first-child {
   position: sticky !important;
   left: 0 !important;
-  background-color: #111827 !important; /* Matches panel bg perfectly */
+  background: rgba(19, 17, 28, 0.8) !important; 
+  backdrop-filter: blur(12px) !important; 
+  -webkit-backdrop-filter: blur(12px) !important;
   z-index: 12 !important;
 }
 
@@ -282,9 +287,11 @@ body {
   white-space: nowrap;
   position: sticky !important;
   left: 0 !important;
-  background-color: #111827 !important; /* Matches panel bg perfectly */
+  background: rgba(19, 17, 28, 0.8) !important; 
+  backdrop-filter: blur(12px) !important; 
+  -webkit-backdrop-filter: blur(12px) !important;
   z-index: 11 !important;
-  box-shadow: 2px 0 5px rgba(0,0,0,0.3); /* Creates depth over scrolling cells */
+  box-shadow: 2px 0 5px rgba(0,0,0,0.3);
 }
 .habit-label-inner {
   display: flex;
@@ -327,8 +334,6 @@ body {
 .cell-btn {
   width: 26px; height: 26px;
   border-radius: 6px;
-  border: 1.5px solid var(--border);
-  background: var(--bg-card);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -336,6 +341,8 @@ body {
   transition: all 0.15s ease;
   position: relative;
   overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 .cell-btn::after {
   content: '';
@@ -350,8 +357,9 @@ body {
   transform: scale(1.15);
 }
 .cell-btn.done {
-  border-color: transparent;
-  box-shadow: 0 0 8px currentColor;
+  background-color: #8b5cf6;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
 }
 .cell-btn.done::before {
   content: '✓';
@@ -373,6 +381,8 @@ body {
 /* Today column highlight */
 .today-col .cell-btn {
   border-color: rgba(99,102,241,.4);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Grid loading */
@@ -502,12 +512,12 @@ body {
   align-items: center;
   gap: .75rem;
   padding: .6rem .8rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--transition);
   animation: slideIn .2s ease;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 .todo-item:hover {
   background: var(--bg-hover);
@@ -524,16 +534,17 @@ body {
 .todo-checkbox {
   width: 18px; height: 18px;
   border-radius: 5px;
-  border: 2px solid var(--border-active);
-  background: transparent;
   flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   transition: all var(--transition);
   cursor: pointer;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 .todo-item.completed .todo-checkbox {
-  background: var(--success);
   border-color: var(--success);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 .todo-item.completed .todo-checkbox::after { content: '✓'; color: #fff; font-size: .7rem; font-weight: 700; }
 
@@ -603,14 +614,17 @@ body {
 @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
 
 .modal-card {
-  background: #131d30;
-  border: 1px solid var(--border-active);
-  border-radius: var(--radius-xl);
   padding: 2rem;
   width: min(420px, calc(100vw - 2rem));
   position: relative;
-  box-shadow: var(--shadow-lg);
   animation: popIn .2s cubic-bezier(.34,1.56,.64,1);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border-radius: 16px;
 }
 @keyframes popIn { from { transform: scale(.9); opacity:0; } to { transform: scale(1); opacity:1;} }
 
@@ -733,7 +747,7 @@ body {
     width: 60px;
     height: 60px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6); /* Purple/Indigo gradient */
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
     color: white;
     border: none;
     font-size: 28px;
@@ -763,21 +777,17 @@ body {
 }
 
 /* ═════════════════════════════════════════════════════════════════════════════
-   PREMIUM AI CO-PILOT WIDGET UI (React Dimensions: 327x505)
+   PREMIUM AI CO-PILOT WIDGET UI 
 ═════════════════════════════════════════════════════════════════════════════ */
 
 .chat-window {
     position: fixed;
     bottom: 96px; 
     right: 24px;  
-    width: 327px;  /* Exact width from React */
-    height: 505px; /* Exact height from React */
-    background-color: #1e1e2e;
-    border: 1px solid #334155;
-    border-radius: 24px; /* Exact rounded corners from React */
+    width: 327px;  
+    height: 505px; 
     display: flex;
     flex-direction: column;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
     z-index: 1000;
     
     /* Smooth Spring Animation */
@@ -785,6 +795,14 @@ body {
     pointer-events: none;
     transform: translateY(20px) scale(0.95);
     transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    border-radius: 16px;
 }
 
 .chat-window.open {
@@ -797,12 +815,12 @@ body {
 .chat-header {
     display: flex;
     justify-content: space-between;
-    align-items: center; /* Changed from flex-start to center */
-    padding: 16px 16px 12px 16px; /* Tighter padding */
-    background-color: #1e1e2e;
-    border-bottom: 1px solid #2a3441;
-    border-top-left-radius: 24px;
-    border-top-right-radius: 24px;
+    align-items: center; 
+    padding: 16px 16px 12px 16px; 
+    background-color: transparent; /* Updated for glass */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
 }
 
 .header-info {
@@ -826,7 +844,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding: 14px 16px; /* Tighter padding */
+    padding: 14px 16px; 
     overflow-y: auto;
     flex-grow: 1;
 }
@@ -847,9 +865,9 @@ body {
 }
 
 .chip {
-    background-color: #283345;
+    background-color: rgba(40, 51, 69, 0.5);
     color: #cbd5e1;
-    border: 1px solid #3b4b63;
+    border: 1px solid rgba(59, 75, 99, 0.5);
     padding: 12px 16px;
     border-radius: 12px;
     text-align: left;
@@ -858,42 +876,40 @@ body {
     cursor: pointer;
     transition: all 0.2s ease;
     font-family: inherit;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .chip:hover {
-    background-color: #334155;
+    background-color: rgba(51, 65, 85, 0.8);
     border-color: #6366f1;
     color: #ffffff;
     transform: translateY(-1px);
 }
 
-/* ─── 3. I-MESSAGE BUBBLES ─── */
+/* ─── I-MESSAGE BUBBLES ─── */
 .msg-user {
     align-self: flex-end;
     background-color: #6366f1; 
     color: #ffffff;
     padding: 8px 12px;
     border-radius: 18px 18px 4px 18px; 
-    max-width: 90%; /* Let it stretch a bit more */
-    font-size: 13px; /* Slightly smaller text */
+    max-width: 90%; 
+    font-size: 13px; 
     line-height: 1.4;
     box-shadow: 0 2px 5px rgba(0,0,0,0.15);
 }
 
 .msg-ai {
     align-self: flex-start;
-    background-color: #334155; 
+    background-color: rgba(51, 65, 85, 0.7); 
     color: #f8fafc;
     padding: 8px 12px;
     border-radius: 4px 18px 18px 18px; 
     max-width: 90%; 
-    font-size: 13px; /* Slightly smaller text */
+    font-size: 13px; 
     line-height: 1.4;
     box-shadow: 0 2px 5px rgba(0,0,0,0.15);
 }
 
-/* Markdown Formatting */
 .msg-ai p { margin: 0 0 8px 0; }
 .msg-ai p:last-child { margin: 0; }
 .msg-ai ul { margin: 8px 0; padding-left: 20px; list-style-type: disc; }
@@ -905,24 +921,24 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 16px 14px 16px; /* Tighter padding */
-    background-color: #1e1e2e;
-    border-top: 1px solid #2a3441;
-    border-bottom-left-radius: 24px;
-    border-bottom-right-radius: 24px;
+    padding: 10px 16px 14px 16px; 
+    background-color: transparent;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
 }
 
 #chat-input {
     flex-grow: 1;
-    background-color: #0f172a; 
-    border: 1px solid #334155;
+    background-color: rgba(15, 23, 42, 0.5); 
+    border: 1px solid rgba(51, 65, 85, 0.5);
     color: white;
     padding: 10px 14px;
     border-radius: 20px;
     font-size: 13px;
     outline: none;
     transition: border-color 0.2s;
-    width: 100%; /* Prevents squishing */
+    width: 100%; 
 }
 
 #chat-input:focus { border-color: #6366f1; }
@@ -935,12 +951,12 @@ body {
 
 #send-btn {
     background-color: #6366f1; color: white; border: none;
-    width: 32px; /* Smaller button */
+    width: 32px; 
     height: 32px; 
     font-size: 14px;
     border-radius: 50%;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
-    transition: transform 0.2s; flex-shrink: 0; /* Prevents button from shrinking */
+    transition: transform 0.2s; flex-shrink: 0; 
 }
 #send-btn:hover { transform: scale(1.05); }
 
@@ -950,7 +966,7 @@ body {
 .auth-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(17, 20, 34, 0.95); /* Deep navy base */
+    background: rgba(17, 20, 34, 0.95);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     z-index: 10000;
@@ -968,16 +984,19 @@ body {
 }
 
 .auth-card {
-    background: #1c2136;
-    border: 1px solid #2a2f45;
-    border-radius: 24px;
     width: 100%;
     max-width: 420px;
     padding: 40px;
-    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
     display: flex;
     flex-direction: column;
     gap: 24px;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    border-radius: 16px;
 }
 
 .auth-header {
@@ -1037,8 +1056,8 @@ body {
 .auth-field input {
     width: 100%;
     padding: 14px 16px;
-    background: #111422;
-    border: 1px solid #2a2f45;
+    background: rgba(17, 20, 34, 0.5);
+    border: 1px solid rgba(42, 47, 69, 0.5);
     border-radius: 12px;
     color: #f8fafc;
     font-size: 15px;
@@ -1091,7 +1110,7 @@ body {
 
 .auth-footer {
     text-align: center;
-    border-top: 1px solid #2a2f45;
+    border-top: 1px solid rgba(42, 47, 69, 0.5);
     padding-top: 20px;
     margin-top: 4px;
 }
@@ -1131,7 +1150,7 @@ body {
     width: 60px;
     height: 60px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #10b981, #059669); /* Green gradient */
+    background: linear-gradient(135deg, #10b981, #059669); 
     color: white;
     border: none;
     font-size: 28px;
@@ -1155,10 +1174,6 @@ body {
     width: 360px !important;
     height: 520px !important;
     max-height: 80vh !important;
-    background: #151828 !important; 
-    border: 1px solid #2a2f45 !important;
-    border-radius: 24px !important;
-    box-shadow: 0 15px 35px rgba(0,0,0,0.5) !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
@@ -1169,6 +1184,14 @@ body {
     transform: translateY(20px) scale(0.95) !important; 
     pointer-events: none !important; 
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    border-radius: 16px;
 }
 
 .todo-window.open {
@@ -1207,8 +1230,12 @@ body {
    MOBILE UI OVERRIDES (Popups, Buttons, Inputs)
    ══════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-    /* 1. Header & Navigation Fixes */
-    .app-header { padding: 1.2rem 1rem 0; height: auto; }
+    .app-header { padding: 1.2rem 1rem 0; height: auto; 
+      background: rgba(255, 255, 255, 0.02);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
     .header-inner {
         height: auto;
         display: grid;
@@ -1226,7 +1253,6 @@ body {
     .streak-badge { grid-area: streak; justify-self: flex-end; }
     #profile-badge { grid-area: profile; }
 
-    /* 2. Font Sizing & Text Truncation */
     html { font-size: 14px; }
     .habit-label-cell {
         white-space: normal !important;
@@ -1244,12 +1270,13 @@ body {
         line-height: 1.3;
     }
 
-    /* 3. Habit Matrix Grid Scaling */
     .day-header-row th { min-width: 44px; }
     .habit-cell { min-width: 44px; }
-    .cell-btn { width: 34px; height: 34px; }
+    .cell-btn { width: 34px; height: 34px; 
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
 
-    /* Mobile overrides for modals and buttons */
     .btn-primary, .btn-auth, .btn-add-todo, #btn-logout {
         padding: 14px 20px !important;
         min-height: 50px !important;
@@ -1259,30 +1286,50 @@ body {
         padding: 14px 16px !important;
         font-size: 16px !important;
     }
-    .modal-card {
+    
+    .modal-card, .auth-card {
         width: 100% !important;
         max-width: 90vw !important;
         padding: 1.5rem !important;
         max-height: 90vh;
         overflow-y: auto;
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        border-radius: 16px;
     }
-    .auth-card {
-        width: 100% !important;
-        max-width: 90vw !important;
-        padding: 20px !important;
-    }
+    
     .chat-window {
         width: 90vw !important;
         right: 5vw !important;
         height: 60vh !important;
         bottom: 90px !important;
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        border-radius: 16px;
     }
+    
     .todo-window {
         width: 90vw !important;
         left: 5vw !important;
         height: 60vh !important;
         bottom: 90px !important;
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        border-radius: 16px;
     }
+    
     #todo-toggle-btn, #chat-toggle-btn {
         width: 54px;
         height: 54px;
@@ -1292,4 +1339,49 @@ body {
     /* 4. Floating Action Buttons padding */
     .todo-widget-container { bottom: 32px; left: 24px; }
     .chat-widget-container { bottom: 32px !important; right: 24px !important; }
+}
+
+/* =========================================================================
+   --- OVERRIDE: FORCE GLASSMORPHISM THEME (HARD FIX) --- 
+   ========================================================================= */
+
+body {
+  background: linear-gradient(135deg, #13111C 0%, #1D1934 50%, #13111C 100%) !important;
+}
+
+/* Force the glass effect on all major panels and cards */
+.panel, 
+.todo-window, 
+.chat-window, 
+.habit-matrix-container,
+.progress-rings-container,
+.auth-card,
+.modal-card {
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Force empty checkboxes to be translucent instead of dark grey */
+.habit-day,
+.cell-btn,
+.todo-checkbox {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Force completed checkboxes to have a neon glow */
+.habit-day.completed,
+.cell-btn.done {
+  background: #8b5cf6 !important;
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.6) !important;
+}
+
+.todo-item.completed .todo-checkbox {
+  background: rgba(16, 185, 129, 0.2) !important;
+  border-color: var(--success) !important;
 }

@@ -12,6 +12,7 @@ import jwt
 from sqlalchemy.orm import Session
 from datetime import date
 from pydantic import BaseModel
+from database import SessionLocal
 
 from database import engine, get_db
 import models, schemas
