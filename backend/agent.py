@@ -17,7 +17,7 @@ Key design choices:
 
 import os
 import time
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from typing import Annotated, TypedDict
 
 from dotenv import load_dotenv
@@ -32,17 +32,8 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 
 # ── Local modules ──────────────────────────────────────────────────────────────
-from sentence_transformers import SentenceTransformer
+from tools import make_tools
 import models
-
-load_dotenv()  # MUST be before ChatGroq() so GROQ_API_KEY is in the environment
-
-# ── Embedding model (loaded once at import time) ───────────────────────────────
-# all-mpnet-base-v2 → 768-dim vectors. First run downloads ~420 MB to
-# ~/.cache/huggingface; every subsequent start is instant.
-print("Loading AI Embedding Model...")
-embed_model = SentenceTransformer("all-mpnet-base-v2")
-print("Embedding model ready!")
 
 # ── LLM — instantiated lazily in run_agent() so .env is always loaded first ──
 _groq_api_key = os.getenv("GROQ_API_KEY")  # read once as a sanity check
@@ -55,196 +46,7 @@ class AgentState(TypedDict):
     user_id: str
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TOOL FACTORY
-# Returns a fresh list of @tool closures that already "know" the current
-# user_id and db session, so the LLM never sees those internal parameters.
-# ══════════════════════════════════════════════════════════════════════════════
-def make_tools(user_id: str, db: Session) -> list:
-    """Build a set of LangChain tools bound to this request's user and DB."""
 
-    @tool
-    def add_habit(title: str) -> str:
-        """Add a new recurring daily habit for the user."""
-        new_habit = models.Habit(title=title, user_id=user_id)
-        db.add(new_habit)
-        db.commit()
-        return f"✅ Created habit: '{title}'"
-
-    @tool
-    def delete_habit(name: str) -> str:
-        """Delete an existing recurring habit by name (fuzzy match)."""
-        habit = (
-            db.query(models.Habit)
-            .filter(
-                models.Habit.title.ilike(f"%{name}%"),
-                models.Habit.user_id == user_id,
-            )
-            .first()
-        )
-        if not habit:
-            return f"⚠️ No habit found matching '{name}'."
-        db.delete(habit)
-        db.commit()
-        return f"🗑️ Deleted habit: '{habit.title}'"
-
-    @tool
-    def get_habits() -> str:
-        """List all of the user's current habits."""
-        habits = (
-            db.query(models.Habit)
-            .filter(models.Habit.user_id == user_id, models.Habit.is_active == True)
-            .all()
-        )
-        if not habits:
-            return "You don't have any habits yet!"
-        return "\n".join([f"• {h.title}" for h in habits])
-
-    @tool
-    def add_todo(todo_text: str) -> str:
-        """Add a new one-time to-do task for the user. Generates a semantic embedding for future search."""
-        vector = embed_model.encode(todo_text).tolist()
-        new_todo = models.Todo(title=todo_text, user_id=user_id, embedding=vector)
-        db.add(new_todo)
-        db.commit()
-        return f"✅ Added to To-Do list: '{todo_text}'"
-
-    @tool
-    def mark_habit_done(name: str, log_date: str = None) -> str:
-        """Mark a recurring habit as completed for a specific date (YYYY-MM-DD).
-        If the user does not specify a date, leave log_date empty and it will default to today."""
-        habit = (
-            db.query(models.Habit)
-            .filter(
-                models.Habit.title.ilike(f"%{name}%"),
-                models.Habit.user_id == user_id,
-            )
-            .first()
-        )
-        if not habit:
-            return f"⚠️ No habit found matching '{name}'."
-
-        # Safely handle the date parsing
-        if log_date:
-            try:
-                parsed_date = date.fromisoformat(log_date)
-            except Exception:
-                parsed_date = date.today()
-        else:
-            parsed_date = date.today()
-
-        log = (
-            db.query(models.HabitLog)
-            .filter(
-                models.HabitLog.habit_id == habit.id,
-                models.HabitLog.date == parsed_date,
-                models.HabitLog.user_id == user_id,
-            )
-            .first()
-        )
-        if log:
-            log.status = True
-        else:
-            log = models.HabitLog(
-                habit_id=habit.id, date=parsed_date, status=True, user_id=user_id
-            )
-            db.add(log)
-        db.commit()
-        return f"✅ Marked '{habit.title}' as done for {parsed_date.isoformat()}."
-
-    @tool
-    def search_past_tasks(query: str) -> str:
-        """Semantic vector search to find past or existing to-do tasks using natural language.
-        Use when the user asks what tasks they have related to a topic, or wants to find something they added before."""
-        query_vector = embed_model.encode(query).tolist()
-        results = (
-            db.query(models.Todo)
-            .filter(
-                models.Todo.user_id == user_id,
-                models.Todo.embedding.isnot(None),
-            )
-            .order_by(models.Todo.embedding.cosine_distance(query_vector))
-            .limit(5)
-            .all()
-        )
-        if not results:
-            return "No related tasks found in your list."
-        rows = [
-            f"- {t.title} ({'✅ done' if t.is_completed else '⬜ pending'})"
-            for t in results
-        ]
-        return "\n".join(rows)
-
-    @tool
-    def delete_all_habits() -> str:
-        """Bulk deletes every habit to clear the board."""
-        habits = db.query(models.Habit).filter(models.Habit.user_id == user_id).all()
-        count = len(habits)
-        for h in habits:
-            db.delete(h)
-        db.commit()
-        return f"🗑️ Deleted all {count} habits."
-
-    @tool
-    def mark_todo_done(title: str) -> str:
-        """Checks off a pending task."""
-        todo = (
-            db.query(models.Todo)
-            .filter(
-                models.Todo.title.ilike(f"%{title}%"),
-                models.Todo.user_id == user_id,
-            )
-            .first()
-        )
-        if not todo:
-            return f"⚠️ No task found matching '{title}'."
-        todo.is_completed = True
-        db.commit()
-        return f"✅ Marked task '{todo.title}' as done."
-
-    @tool
-    def delete_all_todos() -> str:
-        """Bulk deletes every task."""
-        todos = db.query(models.Todo).filter(models.Todo.user_id == user_id).all()
-        count = len(todos)
-        for t in todos:
-            db.delete(t)
-        db.commit()
-        return f"🗑️ Deleted all {count} tasks."
-
-    @tool
-    def get_daily_agenda() -> str:
-        """Retrieves a combined list of all pending to-do tasks and active habits for today."""
-        pending_tasks = db.query(models.Todo).filter(models.Todo.user_id == user_id, models.Todo.is_completed == False).all()
-        active_habits = db.query(models.Habit).filter(models.Habit.user_id == user_id, models.Habit.is_active == True).all()
-        
-        task_list = [f"- Task: {t.title}" for t in pending_tasks]
-        habit_list = [f"- Habit: {h.title}" for h in active_habits]
-        
-        if not task_list and not habit_list:
-            return "Your agenda is completely clear today!"
-        return "PENDING TASKS:\n" + "\n".join(task_list) + "\n\nACTIVE HABITS:\n" + "\n".join(habit_list)
-
-    @tool
-    def get_progress_report() -> str:
-        """Checks the user's habit logs to see what they have completed today."""
-        today = date.today()
-        logs_today = db.query(models.HabitLog).filter(
-            models.HabitLog.user_id == user_id,
-            models.HabitLog.date == today,
-            models.HabitLog.status == True,
-        ).all()
-
-        if not logs_today:
-            return "No habits logged yet today."
-        completed = [str(log.habit_id) for log in logs_today]
-        return f"Habit IDs completed today: {', '.join(completed)}."
-
-    return [
-        add_habit, delete_habit, get_habits, mark_habit_done, delete_all_habits,
-        add_todo, mark_todo_done, delete_all_todos,
-        search_past_tasks, get_daily_agenda, get_progress_report
-    ]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -252,26 +54,26 @@ def make_tools(user_id: str, db: Session) -> list:
 # Inspects the final message list to determine what the AI did —
 # so the frontend knows whether to refresh todos, habits, or nothing.
 # ══════════════════════════════════════════════════════════════════════════════
-_TODO_TOOLS   = {"add_todo", "mark_todo_done", "delete_all_todos"}
-_HABIT_TOOLS  = {"add_habit", "delete_habit", "mark_habit_done", "delete_all_habits"}
+_TASK_TOOLS   = {"add_task", "reschedule_task", "mark_task_done", "delete_all_tasks"}
+_HABIT_TOOLS  = {"add_habit", "delete_habit", "edit_habit", "mark_habit_done", "delete_all_habits"}
 
 def _detect_action(messages: list[BaseMessage]) -> str:
     """Walk the message list and return the highest-priority action_taken signal."""
-    todo_touched  = False
+    task_touched  = False
     habit_touched = False
     for msg in messages:
         # ToolMessage carries the tool name in its `name` attribute
         tool_name = getattr(msg, "name", None)
-        if tool_name in _TODO_TOOLS:
-            todo_touched = True
+        if tool_name in _TASK_TOOLS:
+            task_touched = True
         if tool_name in _HABIT_TOOLS:
             habit_touched = True
-    if habit_touched and todo_touched:
+    if habit_touched and task_touched:
         return "refresh_all"
     if habit_touched:
         return "refresh_habits"
-    if todo_touched:
-        return "refresh_todos"
+    if task_touched:
+        return "refresh_tasks"
     return "none"
 
 
@@ -281,8 +83,8 @@ def _detect_action(messages: list[BaseMessage]) -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 SYSTEM_PROMPT = (
     "You are CogniPlan's AI Co-Pilot — a smart, friendly, human-like productivity coach.\n"
-    "Today's date is {today}.\n"
-    "You have access to tools to manage the user's habits and to-do tasks. "
+    "Today's exact date and time is {today}.\n"
+    "You have access to tools to manage the user's habits and tasks. "
     "If a request is vague (e.g. 'I want to start going to the gym'), ask whether it should be "
     "a daily habit or a one-time task before acting.\n"
     "When you need multiple pieces of information, use tools in sequence — search first, then act."
@@ -341,7 +143,7 @@ def run_agent(
             lc_history.append(AIMessage(content=msg["content"]))
 
     # 4. Build the full messages list: system + history + new user message
-    today_str = date.today().isoformat()
+    today_str = datetime.now().strftime("%A, %Y-%m-%d %H:%M:%S")
     all_messages: list[BaseMessage] = [
         SystemMessage(content=SYSTEM_PROMPT.format(today=today_str)),
         *lc_history,

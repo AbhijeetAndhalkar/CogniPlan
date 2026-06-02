@@ -460,7 +460,7 @@ body {
 /* ══════════════════════════════════════════════════════════════
    TODOS
    ══════════════════════════════════════════════════════════════ */
-.todo-count-badge {
+.task-count-badge {
   background: var(--accent);
   color: #fff;
   border-radius: 99px;
@@ -475,7 +475,7 @@ body {
   gap: .5rem;
   margin-bottom: 1rem;
 }
-.todo-input {
+.task-input {
   flex: 1;
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -487,10 +487,10 @@ body {
   outline: none;
   transition: border-color var(--transition);
 }
-.todo-input::placeholder { color: var(--text-muted); }
-.todo-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.task-input::placeholder { color: var(--text-muted); }
+.task-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
 
-.btn-add-todo {
+.btn-add-task {
   background: linear-gradient(135deg, #6366f1, #4f46e5);
   color: #fff;
   border: none;
@@ -503,11 +503,11 @@ body {
   transition: all var(--transition);
   box-shadow: 0 2px 8px rgba(99,102,241,.3);
 }
-.btn-add-todo:hover { transform: scale(1.08); box-shadow: 0 4px 16px rgba(99,102,241,.45); }
+.btn-add-task:hover { transform: scale(1.08); box-shadow: 0 4px 16px rgba(99,102,241,.45); }
 
-.todo-list { list-style: none; display: flex; flex-direction: column; gap: .45rem; }
+.task-list { list-style: none; display: flex; flex-direction: column; gap: .45rem; }
 
-.todo-item {
+.task-item {
   display: flex;
   align-items: center;
   gap: .75rem;
@@ -519,19 +519,19 @@ body {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
-.todo-item:hover {
+.task-item:hover {
   background: var(--bg-hover);
   border-color: var(--border-active);
 }
-.todo-item.completed { opacity: .55; }
-.todo-item.completed .todo-text { text-decoration: line-through; color: var(--text-muted); }
+.task-item.completed { opacity: .55; }
+.task-item.completed .task-text { text-decoration: line-through; color: var(--text-muted); }
 
 @keyframes slideIn {
   from { opacity:0; transform: translateY(-6px); }
   to   { opacity:1; transform: translateY(0); }
 }
 
-.todo-checkbox {
+.task-checkbox {
   width: 18px; height: 18px;
   border-radius: 5px;
   flex-shrink: 0;
@@ -541,21 +541,21 @@ body {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
-.todo-item.completed .todo-checkbox {
+.task-item.completed .task-checkbox {
   border-color: var(--success);
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
-.todo-item.completed .todo-checkbox::after { content: '✓'; color: #fff; font-size: .7rem; font-weight: 700; }
+.task-item.completed .task-checkbox::after { content: '✓'; color: #fff; font-size: .7rem; font-weight: 700; }
 
-.todo-text {
+.task-text {
   flex: 1;
   font-size: .88rem;
   color: var(--text-primary);
   line-height: 1.3;
 }
 
-.todo-del-btn {
+.task-del-btn {
   background: none;
   border: none;
   color: var(--text-muted);
@@ -567,8 +567,8 @@ body {
   transition: all var(--transition);
   flex-shrink: 0;
 }
-.todo-item:hover .todo-del-btn { opacity: 1; }
-.todo-del-btn:hover { color: var(--danger); }
+.task-item:hover .task-del-btn { opacity: 1; }
+.task-del-btn:hover { color: var(--danger); }
 
 /* ══════════════════════════════════════════════════════════════
    EMPTY STATE
@@ -1136,14 +1136,14 @@ body {
 #auth-switch-btn:hover { color: #a78bfa; text-decoration: underline; }
 
 /* 3. Todo Widget rules */
-.todo-widget-container {
+.task-widget-container {
     position: fixed;
     bottom: 30px;
     left: 30px;
     z-index: 9999;
 }
 
-#todo-toggle-btn {
+#task-toggle-btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1161,13 +1161,13 @@ body {
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-#todo-toggle-btn:hover {
+#task-toggle-btn:hover {
     transform: scale(1.08);
     box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
 }
 
-/* --- TODO WINDOW MAIN CONTAINER --- */
-.todo-window {
+/* --- TASK WINDOW MAIN CONTAINER --- */
+.task-window {
     position: fixed !important;
     bottom: 110px !important;
     left: 30px !important;
@@ -1194,13 +1194,13 @@ body {
     border-radius: 16px;
 }
 
-.todo-window.open {
+.task-window.open {
     opacity: 1 !important;
     transform: translateY(0) scale(1) !important;
     pointer-events: auto !important;
 }
 
-.todo-window .todo-list {
+.task-window .task-list {
     flex: 1;
     overflow-y: auto;
     padding-bottom: 20px;
@@ -1277,12 +1277,12 @@ body {
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
-    .btn-primary, .btn-auth, .btn-add-todo, #btn-logout {
+    .btn-primary, .btn-auth, .btn-add-task, #btn-logout {
         padding: 14px 20px !important;
         min-height: 50px !important;
         font-size: 16px !important;
     }
-    .form-input, .todo-input, .auth-field input, #chat-input {
+    .form-input, .task-input, .auth-field input, #chat-input {
         padding: 14px 16px !important;
         font-size: 16px !important;
     }
@@ -1316,7 +1316,7 @@ body {
         border-radius: 16px;
     }
     
-    .todo-window {
+    .task-window {
         width: 90vw !important;
         left: 5vw !important;
         height: 60vh !important;
@@ -1330,14 +1330,14 @@ body {
         border-radius: 16px;
     }
     
-    #todo-toggle-btn, #chat-toggle-btn {
+    #task-toggle-btn, #chat-toggle-btn {
         width: 54px;
         height: 54px;
         font-size: 24px;
     }
     
     /* 4. Floating Action Buttons padding */
-    .todo-widget-container { bottom: 32px; left: 24px; }
+    .task-widget-container { bottom: 32px; left: 24px; }
     .chat-widget-container { bottom: 32px !important; right: 24px !important; }
 }
 
@@ -1351,7 +1351,7 @@ body {
 
 /* Force the glass effect on all major panels and cards */
 .panel, 
-.todo-window, 
+.task-window, 
 .chat-window, 
 .habit-matrix-container,
 .progress-rings-container,
@@ -1368,7 +1368,7 @@ body {
 /* Force empty checkboxes to be translucent instead of dark grey */
 .habit-day,
 .cell-btn,
-.todo-checkbox {
+.task-checkbox {
   background: rgba(255, 255, 255, 0.05) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
@@ -1381,7 +1381,584 @@ body {
   box-shadow: 0 0 12px rgba(139, 92, 246, 0.6) !important;
 }
 
-.todo-item.completed .todo-checkbox {
+.task-item.completed .task-checkbox {
   background: rgba(16, 185, 129, 0.2) !important;
   border-color: var(--success) !important;
+}
+/* ── SPA Tabs & Calendar View ── */
+.spa-tabs {
+  margin-right: auto;
+}
+.tab-btn:hover {
+  background: rgba(99,102,241,0.1) !important;
+}
+.tab-btn.active {
+  background: rgba(99,102,241,0.2) !important;
+  color: #a5b4fc !important;
+}
+.task-calendar-view::-webkit-scrollbar {
+  width: 6px;
+}
+.task-calendar-view::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+}
+.calendar-tasks-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.calendar-tasks-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+}
+.task-date-picker::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+  cursor: pointer;
+}
+.task-date-picker:focus {
+  outline: 1px solid #6366f1;
+}
+
+/* --- ANALYTICS SIDEBAR WIDGETS --- */
+.analytics-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  min-width: 280px;
+}
+
+/* Progress Rings SVG Styling */
+.rings-container {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 15px;
+}
+.progress-ring {
+        grid-template-areas:
+            "brand streak profile"
+            "nav nav nav"
+            "add add add";
+        gap: 1.2rem 0.6rem;
+    }
+    .brand { grid-area: brand; }
+    .month-nav { grid-area: nav; justify-content: center; }
+    .header-actions { display: contents; }
+    #btn-add-habit { grid-area: add; width: 100%; margin: 0; }
+    .streak-badge { grid-area: streak; justify-self: flex-end; }
+    #profile-badge { grid-area: profile; }
+
+    html { font-size: 14px; }
+    .habit-label-cell {
+        white-space: normal !important;
+        min-width: 140px;
+    }
+    .habit-name {
+        max-width: 140px;
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.3;
+    }
+
+    .day-header-row th { min-width: 44px; }
+    .habit-cell { min-width: 44px; }
+    .cell-btn { width: 34px; height: 34px; 
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-primary, .btn-auth, .btn-add-task, #btn-logout {
+        padding: 14px 20px !important;
+        min-height: 50px !important;
+        font-size: 16px !important;
+    }
+    .form-input, .task-input, .auth-field input, #chat-input {
+        padding: 14px 16px !important;
+        font-size: 16px !important;
+    }
+    
+    .modal-card, .auth-card {
+        width: 100% !important;
+        max-width: 90vw !important;
+        padding: 1.5rem !important;
+        max-height: 90vh;
+        overflow-y: auto;
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        border-radius: 16px;
+    }
+    
+    .chat-window {
+        width: 90vw !important;
+        right: 5vw !important;
+        height: 60vh !important;
+        bottom: 90px !important;
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        border-radius: 16px;
+    }
+    
+    .task-window {
+        width: 90vw !important;
+        left: 5vw !important;
+        height: 60vh !important;
+        bottom: 90px !important;
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        border-radius: 16px;
+    }
+    
+    #task-toggle-btn, #chat-toggle-btn {
+        width: 54px;
+        height: 54px;
+        font-size: 24px;
+    }
+    
+    /* 4. Floating Action Buttons padding */
+    .task-widget-container { bottom: 32px; left: 24px; }
+    .chat-widget-container { bottom: 32px !important; right: 24px !important; }
+}
+
+/* =========================================================================
+   --- OVERRIDE: FORCE GLASSMORPHISM THEME (HARD FIX) --- 
+   ========================================================================= */
+
+body {
+  background: linear-gradient(135deg, #13111C 0%, #1D1934 50%, #13111C 100%) !important;
+}
+
+/* Force the glass effect on all major panels and cards */
+.panel, 
+.task-window, 
+.chat-window, 
+.habit-matrix-container,
+.progress-rings-container,
+.auth-card,
+.modal-card {
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Force empty checkboxes to be translucent instead of dark grey */
+.habit-day,
+.cell-btn,
+.task-checkbox {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Force completed checkboxes to have a neon glow */
+.habit-day.completed,
+.cell-btn.done {
+  background: #8b5cf6 !important;
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.6) !important;
+}
+
+.task-item.completed .task-checkbox {
+  background: rgba(16, 185, 129, 0.2) !important;
+  border-color: var(--success) !important;
+}
+/* ── SPA Tabs & Calendar View ── */
+.spa-tabs {
+  margin-right: auto;
+}
+.tab-btn:hover {
+  background: rgba(99,102,241,0.1) !important;
+}
+.tab-btn.active {
+  background: rgba(99,102,241,0.2) !important;
+  color: #a5b4fc !important;
+}
+.task-calendar-view::-webkit-scrollbar {
+  width: 6px;
+}
+.task-calendar-view::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+}
+.calendar-tasks-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.calendar-tasks-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+}
+.task-date-picker::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+  cursor: pointer;
+}
+.task-date-picker:focus {
+  outline: 1px solid #6366f1;
+}
+
+/* --- ANALYTICS SIDEBAR WIDGETS --- */
+.analytics-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  min-width: 280px;
+}
+
+/* Progress Rings SVG Styling */
+/* --- PERFECT EXECUTION RINGS --- */
+.rings-container {
+  display: flex;
+  justify-content: space-evenly; /* Better spacing than space-around */
+  align-items: center;
+  margin-top: 20px;
+  margin-bottom: 10px;
+  flex: 1;
+}
+.progress-ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 45%;
+}
+.circular-chart { 
+  display: block; 
+  margin: 0 auto; 
+  width: 100%; 
+  max-width: 140px; /* Keep them consistently sized */
+  aspect-ratio: 1; 
+  overflow: visible !important; /* PREVENTS CROPPING */
+  padding: 4px; /* Gives the stroke room to breathe */
+}
+.circle-bg { fill: none; stroke: rgba(255, 255, 255, 0.05); stroke-width: 3.8; }
+.circle { fill: none; stroke-width: 2.8; stroke-linecap: round; animation: progress 1s ease-out forwards; }
+.purple .circle { stroke: #8b5cf6; }
+.green .circle { stroke: #10b981; }
+.percentage { fill: #fff; font-size: 0.5em; text-anchor: middle; font-weight: bold; }
+.ring-label { margin-top: 8px; font-size: 0.8rem; color: #94a3b8; font-weight: 500; }
+
+@keyframes progress {
+  0% { stroke-dasharray: 0 100; }
+}
+
+/* GitHub-style Mini Matrix */
+.mini-matrix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-start;
+  margin-top: 15px;
+}
+.mini-block {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.mini-block.active {
+  background: #8b5cf6;
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+  border-color: #a78bfa;
+}
+
+/* Focus Allocation Bar */
+.allocation-bar {
+  display: flex;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 15px 0;
+  background: rgba(255, 255, 255, 0.05);
+}
+.segment { height: 100%; }
+.segment.coding { background: #8b5cf6; }
+.segment.prep { background: #3b82f6; }
+.segment.break { background: #10b981; }
+
+.allocation-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+.allocation-legend .dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.dot.coding { background: #8b5cf6; }
+.dot.prep { background: #3b82f6; }
+.dot.break { background: #10b981; }
+
+/* --- DARK MODE GLASSMORPHISM UPDATES --- */
+
+/* 1. Update Panel Glassmorphism */
+.panel {
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+  border-radius: 16px;
+}
+
+/* 2. Dark Mode Task & Habit Cards */
+.todo-item {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #f1f5f9 !important;
+}
+.todo-item.completed {
+  opacity: 0.5;
+}
+.todo-item .todo-text {
+  color: #f1f5f9 !important;
+}
+
+/* 3. Enhance Analytics Typography */
+.panel-title {
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  font-size: 0.75rem !important;
+  color: #94a3b8 !important;
+}
+
+/* 4. Glow for SVG Rings */
+.circular-chart.purple .circle {
+  filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.5));
+}
+
+/* =========================================================================
+   --- RESPONSIVE MASTER LAYOUT --- 
+   ========================================================================= */
+
+/* 1. Base / Split-Screen / Mobile View (Fluid, auto-height, natural scrolling) */
+.dashboard {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 24px !important;
+  height: auto !important;
+  overflow: visible !important;
+  padding-bottom: 40px !important;
+}
+
+.dashboard > div {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 24px !important;
+  height: auto !important; /* Unlock height */
+  overflow: visible !important; /* Let the main page handle scrolling */
+}
+
+.panel:has(.todo-list) {
+  flex: none !important; /* Don't force stretch on small screens */
+  min-height: 400px !important; /* Ensure lists have room before scrolling */
+}
+
+/* Optional: Hide the bulky scrollbar on the main columns for a cleaner glass look, 
+   while keeping the scroll functionality intact */
+.dashboard > div::-webkit-scrollbar { 
+  width: 4px; 
+}
+.dashboard > div::-webkit-scrollbar-track { 
+  background: transparent; 
+}
+.dashboard > div::-webkit-scrollbar-thumb { 
+  background: rgba(255, 255, 255, 0.1); 
+  border-radius: 10px; 
+}
+
+/* 2. Desktop View (Strict 50/50 Grid, Locked Viewport Height, Internal Scrolling) */
+@media (min-width: 1100px) {
+  .dashboard {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    height: calc(100vh - 100px) !important; /* Lock to viewport */
+    overflow: hidden !important; /* Kill main page scroll */
+  }
+
+  .dashboard > div {
+    height: calc(100vh - 100px) !important;
+    overflow-y: auto !important; /* Allow columns to scroll */
+    padding-right: 8px !important;
+  }
+
+  .panel:has(.todo-list) {
+    flex: 1 !important; /* Stretch to fill bottom of column */
+    min-height: 0 !important; /* Allow inner list to scroll */
+  }
+}
+
+/* 3. Make the actual lists scrollable */
+.todo-list {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  min-height: 0 !important;
+  margin-top: 12px !important;
+  padding-right: 12px !important; /* Room for the scrollbar */
+  list-style: none !important;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 4. Premium thin scrollbar for lists */
+.todo-list::-webkit-scrollbar { width: 6px; }
+.todo-list::-webkit-scrollbar-track { background: transparent; }
+.todo-list::-webkit-scrollbar-thumb { 
+  background: rgba(255, 255, 255, 0.15); 
+  border-radius: 10px; 
+}
+.todo-list::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+
+/* Match Task UI styling for Habit Checkboxes */
+.todo-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+  padding: 16px 20px !important;
+  border-radius: 16px !important;
+  margin-bottom: 12px !important;
+}
+
+.todo-checkbox {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #cbd5e1;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.todo-item.completed .todo-checkbox {
+  border-color: #10b981;
+  background: #10b981;
+}
+
+.todo-item.completed .todo-checkbox::after {
+  content: '✓';
+  font-size: 14px;
+  font-weight: bold;
+}
+
+/* =========================================================================
+   --- BRUTE FORCE LAYOUT & SCROLL FIX --- 
+   ========================================================================= */
+
+/* Desktop / Full Screen View */
+@media (min-width: 1000px) {
+  .dashboard {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 24px !important;
+    /* Lock the main dashboard to the screen size so the page never scrolls */
+    height: calc(100vh - 80px) !important;
+    overflow: hidden !important; 
+  }
+  
+  /* The Left and Right Columns */
+  .dashboard > div {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 20px !important;
+    /* Force columns to match screen height but allow internal scrolling */
+    height: 100% !important;
+    overflow-y: auto !important;
+    /* Add a massive bottom padding so panels never get stuck under the screen edge */
+    padding-bottom: 80px !important; 
+    padding-right: 12px !important;
+  }
+  
+  /* Clean up the scrollbar aesthetics inside the columns */
+  .dashboard > div::-webkit-scrollbar { width: 6px; }
+  .dashboard > div::-webkit-scrollbar-track { background: transparent; }
+  .dashboard > div::-webkit-scrollbar-thumb { 
+    background: rgba(255, 255, 255, 0.15); 
+    border-radius: 10px; 
+  }
+}
+
+/* Split-Screen / Mobile View Fallback */
+@media (max-width: 999px) {
+  .dashboard {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .dashboard > div {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
+/* =========================================================================
+   --- TASK TAB INTERNAL SCROLL FIX --- 
+   ========================================================================= */
+
+/* 1. Force the Task Panel (last panel in the left column) to act as a flex container */
+.dashboard > div:first-child .panel:last-of-type {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important; /* Stretch to fill remaining vertical space under calendar */
+  min-height: 0 !important; /* CRITICAL: Permits internal scrolling */
+}
+
+/* 2. Force the container holding the actual tasks to scroll */
+.dashboard > div:first-child .panel:last-of-type > div:last-child,
+.dashboard > div:first-child .panel:last-of-type > ul {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  min-height: 0 !important;
+  padding-right: 8px !important;
+  margin-top: 12px !important;
+}
+
+/* 3. Apply the premium glassmorphism scrollbar to the Tasks list */
+.dashboard > div:first-child .panel:last-of-type > div:last-child::-webkit-scrollbar,
+.dashboard > div:first-child .panel:last-of-type > ul::-webkit-scrollbar {
+  width: 6px;
+}
+.dashboard > div:first-child .panel:last-of-type > div:last-child::-webkit-scrollbar-track,
+.dashboard > div:first-child .panel:last-of-type > ul::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dashboard > div:first-child .panel:last-of-type > div:last-child::-webkit-scrollbar-thumb,
+.dashboard > div:first-child .panel:last-of-type > ul::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+}
+.dashboard > div:first-child .panel:last-of-type > div:last-child::-webkit-scrollbar-thumb:hover,
+.dashboard > div:first-child .panel:last-of-type > ul::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }

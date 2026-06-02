@@ -6,14 +6,15 @@ from pgvector.sqlalchemy import Vector  # Vector column type for semantic search
 from database import Base
 # create the structure of tables like the blueprint
 
-class Todo(Base):
-    __tablename__ = "todos"
+class Task(Base):
+    __tablename__ = "tasks"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(String, nullable=False, index=True)
     title = Column(String, nullable=False)
     is_completed = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    due_date = Column(DateTime, nullable=True)
     embedding = Column(Vector(768), nullable=True)  # 768-dim semantic vector (all-mpnet-base-v2)
 
 
@@ -25,6 +26,8 @@ class Habit(Base):
     title = Column(String, nullable=False)
     frequency = Column(String, default="daily")
     color_theme = Column(String, default="#6366f1")
+    description = Column(String, nullable=True)
+    reminder_time = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

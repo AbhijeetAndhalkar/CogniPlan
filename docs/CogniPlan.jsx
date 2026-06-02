@@ -4,7 +4,7 @@
   - Supabase Auth (login/signup/logout/forgot password)
   - Habit Matrix (grid, toggle cells, delete habits, month nav)
   - Progress Rings (Chart.js doughnut)
-  - Todos (add/toggle/delete, floating widget toggle)
+  - Tasks (add/toggle/delete, floating widget toggle)
   - AI Co-Pilot Chat (floating widget toggle, suggestion chips, markdown)
   - Profile modal
   - Toast notifications
@@ -327,21 +327,27 @@ function ProfileModal({ onClose, showToast }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADD HABIT MODAL
 // ═══════════════════════════════════════════════════════════════════════════════
-function HabitModal({ onClose, onCreated, showToast }) {
-  const [title, setTitle] = useState("");
-  const [color, setColor] = useState("#6366f1");
+function HabitModal({ onClose, onCreated, showToast, initialData = null }) {
+  const [title, setTitle] = useState(initialData?.title || "");
+  const [color, setColor] = useState(initialData?.color_theme || "#6366f1");
+  const [description, setDescription] = useState(initialData?.description || "");
+  const [reminderTime, setReminderTime] = useState(initialData?.reminder_time || "");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title) return;
     try {
-      await api("POST", "/habits/", { title, color_theme: color });
-      showToast("✅ Habit created!");
+      if (initialData) {
+        await api("PUT", `/habits/${initialData.id}`, { title, color_theme: color, description, reminder_time: reminderTime });
+        showToast("✅ Habit updated!");
+      } else {
+        await api("POST", "/habits/", { title, color_theme: color, description, reminder_time: reminderTime });
+        showToast("✅ Habit created!");
+      }
       onCreated();
       onClose();
-      setTitle(""); setColor("#6366f1");
     } catch {
-      showToast("⚠️ Failed to create habit");
+      showToast(initialData ? "⚠️ Failed to update habit" : "⚠️ Failed to create habit");
     }
   };
 
@@ -355,6 +361,13 @@ function HabitModal({ onClose, onCreated, showToast }) {
           <input id="habit-title-input" type="text" className="form-input"
             placeholder="e.g. Morning Workout" required maxLength={60}
             value={title} onChange={(e) => setTitle(e.target.value)} />
+          <label className="form-label" htmlFor="habit-desc-input">Description (Optional)</label>
+          <input id="habit-desc-input" type="text" className="form-input"
+            placeholder="e.g. 30 mins running" maxLength={120}
+            value={description} onChange={(e) => setDescription(e.target.value)} />
+          <label className="form-label" htmlFor="habit-reminder-input">Reminder Time (Optional)</label>
+          <input id="habit-reminder-input" type="time" className="form-input"
+            value={reminderTime} onChange={(e) => setReminderTime(e.target.value)} />
           <label className="form-label">Theme Color</label>
           <div className="color-picker-row">
             <div className="color-swatches">
@@ -367,7 +380,7 @@ function HabitModal({ onClose, onCreated, showToast }) {
               ))}
             </div>
           </div>
-          <button type="submit" className="btn-primary btn-full">Create Habit</button>
+          <button type="submit" className="btn-primary btn-full">{initialData ? "Save Changes" : "Create Habit"}</button>
         </form>
       </div>
     </div>
@@ -442,7 +455,7 @@ function ProgressRings({ habits }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // HABIT GRID
 // ═══════════════════════════════════════════════════════════════════════════════
-function HabitGrid({ data, currentYear, currentMonth, onRefresh, showToast }) {
+function HabitGrid({ data, currentYear, currentMonth, onRefresh, showToast, onEditHabit }) {
   if (!data) {
     return (
       <div className="grid-loading" id="grid-loading">
@@ -496,10 +509,13 @@ function HabitGrid({ data, currentYear, currentMonth, onRefresh, showToast }) {
           {habits.map((habit) => (
             <tr key={habit.id} className="habit-row" data-habit-id={habit.id}>
               <td className="habit-label-cell"
-                style={{ position: "sticky", left: 0, zIndex: 11, backgroundColor: "#0f0f1e", boxShadow: "2px 0 5px rgba(0,0,0,0.3)" }}>
+                style={{ position: "sticky", left: 0, zIndex: 11, boxShadow: "2px 0 5px rgba(0,0,0,0.3)" }}>
                 <div className="habit-label-inner">
                   <span className="habit-dot" style={{ background: habit.color_theme }} />
                   <span className="habit-name" title={habit.title}>{habit.title}</span>
+                  <button className="habit-edit-btn" title="Edit habit"
+                    style={{ background: 'none', border: 'none', color: '#a5b4fc', cursor: 'pointer', opacity: 0.6, fontSize: '0.9rem', padding: '0 4px', marginRight: 4 }}
+                    onClick={(e) => { e.stopPropagation(); onEditHabit(habit); }}>✎</button>
                   <button className="habit-delete-btn" title="Delete habit"
                     onClick={(e) => { e.stopPropagation(); onDeleteHabit(habit.id); }}>✕</button>
                 </div>
@@ -561,105 +577,6 @@ function CellButton({ habitId, dateStr, color, isDone: initialDone, isFuture, ha
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// TODO WIDGET
-// ═══════════════════════════════════════════════════════════════════════════════
-function TodoWindow({ isOpen, onClose, showToast }) {
-  const [todos, setTodos] = useState([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const loadTodos = useCallback(async () => {
-    const token = localStorage.getItem("flowboard_auth_token");
-    if (!token) return;
-    try {
-      const data = await api("GET", "/todos/");
-      setTodos(data);
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
-
-  useEffect(() => { loadTodos(); }, [loadTodos]);
-
-  // Expose loadTodos globally for AI chat refresh
-  useEffect(() => { window.__loadTodos = loadTodos; }, [loadTodos]);
-
-  const handleAdd = async () => {
-    const title = input.trim();
-    if (!title) return;
-    try {
-      await api("POST", "/todos/", { title });
-      setInput("");
-      showToast("✅ Task added");
-      loadTodos();
-    } catch {
-      showToast("⚠️ Failed to add task");
-    }
-  };
-
-  const handleToggle = async (id) => {
-    setTodos((prev) => prev.map((t) => t.id === id ? { ...t, is_completed: !t.is_completed } : t));
-    try {
-      await api("PUT", `/todos/${id}/toggle`);
-      loadTodos();
-    } catch {
-      loadTodos();
-      showToast("⚠️ Could not update todo");
-    }
-  };
-
-  const handleDelete = async (id) => {
-    setTodos((prev) => prev.filter((t) => t.id !== id));
-    try {
-      await api("DELETE", `/todos/${id}`);
-      loadTodos();
-    } catch {
-      loadTodos();
-      showToast("⚠️ Could not delete todo");
-    }
-  };
-
-  const pending = todos.filter((t) => !t.is_completed);
-  const sorted = [...todos].sort((a, b) => a.is_completed - b.is_completed);
-
-  return (
-    <div id="todo-window" className={`todo-window panel panel-todos${isOpen ? " open" : ""}`}>
-      <div className="panel-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          <h2 className="panel-title">Todos</h2>
-          <span id="todo-count" className="todo-count-badge">{pending.length || ""}</span>
-        </div>
-        <button id="todo-close-btn" style={{ background: "none", border: "none", color: "#64748b", fontSize: 16, cursor: "pointer" }}
-          onClick={onClose}>✖</button>
-      </div>
-      <form id="todo-form" className="todo-add-form" autoComplete="off" onSubmit={(e) => { e.preventDefault(); handleAdd(); }}>
-        <input id="todo-input" type="text" className="todo-input" placeholder="Add a new task…" maxLength={120}
-          value={input} onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAdd()} />
-        <button type="button" id="btn-add-todo" className="btn-add-todo" aria-label="Add todo" onClick={handleAdd}>+</button>
-      </form>
-      {sorted.length === 0 ? (
-        <div id="todo-empty" className="empty-state">
-          <div className="empty-icon">✅</div>
-          <p>All tasks completed!</p>
-        </div>
-      ) : (
-        <ul id="todo-list" className="todo-list" role="list">
-          {sorted.map((todo) => (
-            <li key={todo.id} className={`todo-item${todo.is_completed ? " completed" : ""}`}
-              onClick={() => handleToggle(todo.id)}>
-              <div className="todo-checkbox" aria-hidden="true" />
-              <span className="todo-text" dangerouslySetInnerHTML={{ __html: escHtml(todo.title) }} />
-              <button className="todo-del-btn" title="Delete"
-                onClick={(e) => { e.stopPropagation(); handleDelete(todo.id); }}>✕</button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AI CHAT WIDGET
@@ -697,7 +614,7 @@ function ChatWindow({ isOpen, onClose, onRefreshHabits }) {
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
       appendMessage("ai", data.response);
       if (data.action_taken === "refresh_habits" || data.action_taken === "refresh_all") onRefreshHabits();
-      if ((data.action_taken === "refresh_todos" || data.action_taken === "refresh_all") && window.__loadTodos) window.__loadTodos();
+      if ((data.action_taken === "refresh_tasks" || data.action_taken === "refresh_all") && window.__loadTasks) window.__loadTasks();
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
       appendMessage("ai", "❌ Error connecting to AI. Is the server awake?");
@@ -762,22 +679,323 @@ function ChatWindow({ isOpen, onClose, onRefreshHabits }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// TASK CALENDAR VIEW
+// ═══════════════════════════════════════════════════════════════════════════════
+function TaskCalendarView({ currentYear, currentMonth, showToast }) {
+  const [tasks, setTasks] = useState([]);
+  const [habits, setHabits] = useState([]);
+  // Default to today if current month/year matches, otherwise 1st of month
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    if (today.getFullYear() === currentYear && today.getMonth() + 1 === currentMonth) {
+      return padDate(currentYear, currentMonth, today.getDate());
+    }
+    return padDate(currentYear, currentMonth, 1);
+  });
+  const [loading, setLoading] = useState(false);
+  const [analytics, setAnalytics] = useState(null);
+
+  useEffect(() => {
+    const loadAnalytics = async () => {
+      try {
+        const data = await api("GET", "/api/analytics/sidebar");
+        setAnalytics(data);
+      } catch (e) {
+        console.error("Analytics load failed", e);
+      }
+    };
+    loadAnalytics();
+  }, []);
+
+  const fetchTasks = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api("GET", "/tasks/");
+      setTasks(data);
+    } catch (e) {
+      showToast("⚠️ Could not load calendar tasks");
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [currentYear, currentMonth, fetchTasks]);
+
+  useEffect(() => {
+    window.__loadTasks = fetchTasks;
+    return () => { delete window.__loadTasks; };
+  }, [fetchTasks]);
+  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+  const firstDay = new Date(currentYear, currentMonth - 1, 1).getDay();
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const blanks = Array.from({ length: firstDay === 0 ? 6 : firstDay - 1 }, (_, i) => i); // Mon as first day
+
+  const filteredTasks = tasks.filter((t) => {
+    const due = t.due_date ? t.due_date.slice(0, 10) : null;
+    const created = t.created_at ? t.created_at.slice(0, 10) : null;
+    return due === selectedDate || (!due && created === selectedDate);
+  });
+
+  const fetchHabits = useCallback(async () => {
+    try {
+      const data = await api("GET", `/analytics/matrix?year=${currentYear}&month=${currentMonth}`);
+      setHabits(data.habits || []);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [currentYear, currentMonth]);
+
+  useEffect(() => { fetchHabits(); }, [fetchHabits]);
+
+  const toggleHabit = async (habitId, dateStr) => {
+    setHabits(prev => prev.map(h => {
+      if (h.id === habitId) {
+        const currentLog = h.logs && h.logs[dateStr] === true;
+        return { ...h, logs: { ...h.logs, [dateStr]: !currentLog } };
+      }
+      return h;
+    }));
+    
+    try {
+      await api("POST", `/track/?habit_id=${habitId}&log_date=${dateStr}`);
+      showToast("✅ Habit logged");
+    } catch (e) {
+      showToast("⚠️ Update failed");
+      fetchHabits(); // revert
+    }
+  };
+
+  const handleToggle = async (id, currentStatus) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, is_completed: !currentStatus } : t));
+    try {
+      await api("PUT", `/tasks/${id}/toggle`);
+      showToast("✅ Task updated");
+    } catch {
+      showToast("⚠️ Update failed");
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, is_completed: currentStatus } : t));
+    }
+  };
+
+  return (
+    <>
+      <div className="task-calendar-view left-column">
+        {/* Calendar Card */}
+      <div className="panel calendar-card" style={{ padding: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f1f5f9', margin: 0 }}>
+            {new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date(currentYear, currentMonth - 1))}
+          </h2>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', textAlign: 'center', fontWeight: 700, color: '#94a3b8', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '8px' }}>
+          <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+        </div>
+
+        {loading ? <div className="spinner" style={{ margin: "40px auto", borderColor: '#e2e8f0', borderTopColor: '#6B4EFF' }} /> : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
+            {blanks.map((_, i) => <div key={`blank-${i}`} />)}
+            {days.map((d) => {
+              const dateStr = padDate(currentYear, currentMonth, d);
+              const isSelected = selectedDate === dateStr;
+              const hasTask = tasks.some(t => (t.due_date && t.due_date.slice(0, 10) === dateStr) || (!t.due_date && t.created_at.slice(0, 10) === dateStr));
+              
+              return (
+                <div key={d} onClick={() => setSelectedDate(dateStr)} style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  height: '32px', width: '32px', margin: '0 auto',
+                  background: isSelected ? '#8b5cf6' : 'transparent',
+                  color: isSelected ? 'white' : '#f1f5f9',
+                  borderRadius: '50%', cursor: 'pointer', transition: 'all 0.2s ease',
+                  position: 'relative',
+                  fontSize: '0.85rem',
+                  fontWeight: isSelected || hasTask ? 700 : 500,
+                  boxShadow: isSelected ? '0 0 12px rgba(139, 92, 246, 0.7)' : 'none',
+                  border: isSelected ? 'none' : '1px solid transparent'
+                }}>
+                  <span>{d}</span>
+                  {hasTask && !isSelected && (
+                    <div style={{ position: 'absolute', bottom: '2px', width: '4px', height: '4px', background: '#f43f5e', borderRadius: '50%' }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Tasks Below */}
+      {/* Tasks Below */}
+      <div className="panel calendar-tasks-card" style={{ 
+        flex: 1,
+        padding: '30px'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f1f5f9', margin: 0 }}>
+            Tasks for {new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(selectedDate))}
+          </h3>
+        </div>
+
+        {/* Toggle / Tabs */}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '30px' }}>
+          <button style={{ 
+            padding: '8px 20px', 
+            borderRadius: '99px', 
+            border: 'none', 
+            background: '#1e293b', 
+            color: '#ffffff', 
+            fontWeight: 600, 
+            fontSize: '0.9rem',
+            cursor: 'pointer' 
+          }}>Daily Task</button>
+          <button style={{ 
+            padding: '8px 20px', 
+            borderRadius: '99px', 
+            border: '1px solid #e2e8f0', 
+            background: '#ffffff', 
+            color: '#64748b', 
+            fontWeight: 600, 
+            fontSize: '0.9rem',
+            cursor: 'pointer' 
+          }}>Important Dates</button>
+        </div>
+        
+        {filteredTasks.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>✨</div>
+            <p>No tasks for this day. You're all caught up!</p>
+          </div>
+        ) : (
+          <div className="task-list-wrapper" style={{ position: 'relative', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+            {/* The vertical timeline line */}
+            <div style={{ position: 'absolute', left: '79px', top: '24px', bottom: '24px', width: '2px', background: 'rgba(255, 255, 255, 0.1)', zIndex: 0 }} />
+            
+            <ul className="todo-list" style={{ listStyle: 'none', padding: 0, margin: 0, position: 'relative', zIndex: 1, gap: '20px' }}>
+              {filteredTasks.map(t => (
+                <li key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                  {/* Time label */}
+                  <div style={{ width: '50px', textAlign: 'right', paddingTop: '18px', flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b' }}>
+                      {t.due_date ? new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(t.due_date)) : '--:--'}
+                    </span>
+                  </div>
+                  
+                  {/* Checkbox (Timeline Dot) */}
+                  <div style={{ paddingTop: '14px', background: 'transparent', paddingBottom: '4px' }}>
+                    <button onClick={() => handleToggle(t.id, t.is_completed)}
+                      title="Toggle Task"
+                      style={{
+                        width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${t.is_completed ? '#10b981' : '#cbd5e1'}`,
+                        background: t.is_completed ? '#10b981' : 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', color: '#fff', flexShrink: 0, transition: 'all 0.2s',
+                        boxShadow: 'none'
+                      }}>
+                      {t.is_completed && <span style={{ fontSize: '14px', fontWeight: 'bold' }}>✓</span>}
+                    </button>
+                  </div>
+
+                  {/* Task Card */}
+                  <div style={{ 
+                    flex: 1, 
+                    background: 'rgba(255, 255, 255, 0.05)', 
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    padding: '16px 20px', 
+                    borderRadius: '16px', 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    transition: 'all 0.2s'
+                  }}>
+                    <span style={{ 
+                      color: t.is_completed ? '#94a3b8' : '#f1f5f9', 
+                      textDecoration: t.is_completed ? 'line-through' : 'none', 
+                      fontWeight: 700, 
+                      fontSize: '1rem' 
+                    }}>
+                      {t.title}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {/* DAILY HABITS */}
+      </div> {/* Closes task-calendar-view left column */}
+
+      {/* RIGHT SIDEBAR: ANALYTICS & HABITS */}
+      <div className="analytics-sidebar right-column">
+        {/* DAILY HABITS */}
+        <div className="panel habit-daily-panel">
+          <h3 className="panel-title">Habits for {selectedDate ? new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date(selectedDate)) : ''}</h3>
+          <ul className="todo-list">
+            {habits.map(habit => {
+              const isCompletedForSelectedDate = habit.logs && habit.logs[selectedDate] === true;
+              return (
+                <li key={habit.id} className={`todo-item ${isCompletedForSelectedDate ? 'completed' : ''}`}>
+                  <div className="todo-checkbox" onClick={() => toggleHabit(habit.id, selectedDate)}></div>
+                  <span className="todo-text">{habit.title}</span>
+                </li>
+              );
+            })}
+            {habits.length === 0 && <p style={{ color: '#94a3b8' }}>No habits found.</p>}
+          </ul>
+        </div>
+
+        {!analytics ? (
+          <div className="spinner" style={{ margin: "40px auto", borderColor: '#e2e8f0', borderTopColor: '#6B4EFF' }} />
+        ) : (
+          <>
+            {/* Widget 1: Progress Rings */}
+            <div className="panel progress-panel">
+              <h3 className="panel-title">Daily Execution</h3>
+              <div className="rings-container">
+                <div className="progress-ring">
+                  <svg viewBox="0 0 36 36" className="circular-chart purple">
+                    <path className="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    <path className="circle" strokeDasharray={`${analytics.execution.habits}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    <text x="18" y="20.35" className="percentage">{analytics.execution.habits}%</text>
+                  </svg>
+                  <span className="ring-label">Habits Completed</span>
+                </div>
+                <div className="progress-ring">
+                  <svg viewBox="0 0 36 36" className="circular-chart green">
+                    <path className="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    <path className="circle" strokeDasharray={`${analytics.execution.tasks}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    <text x="18" y="20.35" className="percentage">{analytics.execution.tasks}%</text>
+                  </svg>
+                  <span className="ring-label">Tasks Completed</span>
+                </div>
+              </div>
+            </div>
+
+
+
+
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════════
 function App() {
   const [authed, setAuthed] = useState(false);
-  const [matrixData, setMatrixData] = useState(null);
-  const [matrixLoading, setMatrixLoading] = useState(false);
-  const [matrixLoadMsg, setMatrixLoadMsg] = useState("Loading habits…");
+
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
   const [toastMsg, showToast] = useToast();
   const [showHabitModal, setShowHabitModal] = useState(false);
+  const [editingHabit, setEditingHabit] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [isTodoOpen, setIsTodoOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [profileInitial, setProfileInitial] = useState("");
-  const matrixScrollRef = useRef(null);
+
 
   // ── Auth state listener ───────────────────────────────────────────────────────
   // onAuthStateChange fires on page load with the current session state.
@@ -809,7 +1027,7 @@ function App() {
         // Refresh token invalid or user signed out — clear everything and show login
         localStorage.removeItem("flowboard_auth_token");
         setAuthed(false);
-        setMatrixData(null);
+
         setProfileInitial("");
       } else if (event === "INITIAL_SESSION") {
         if (session?.access_token) {
@@ -842,60 +1060,7 @@ function App() {
     }
   };
 
-  // BUG 7 fix: wrap in useCallback so the function identity is stable.
-  // currentYear/currentMonth are in deps so the function always uses fresh values.
-  const loadMatrix = useCallback(async (maxRetries = 12) => {
-    const token = localStorage.getItem("flowboard_auth_token");
-    if (!token) return;
-    setMatrixLoading(true);
-    setMatrixData(null);
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      setMatrixLoadMsg(`Waking up the cloud… Attempt ${attempt} of ${maxRetries}`);
-      try {
-        const data = await api("GET", `/analytics/matrix?year=${currentYear}&month=${currentMonth}`);
-        setMatrixData(data);
-        setMatrixLoading(false);
-        return;
-      } catch (e) {
-        if (e.status === 401 || e.status === 403) {
-          setAuthed(false);
-          setMatrixLoading(false);
-          return;
-        }
-        if (e.status === 502 || e.status === 503 || e.message?.includes("Failed to fetch")) {
-          await delay(5000);
-        } else {
-          setMatrixLoadMsg("❌ Error loading data.");
-          setMatrixLoading(false);
-          return;
-        }
-      }
-    }
-    setMatrixLoadMsg("❌ Connection failed. Please refresh.");
-    setMatrixLoading(false);
-  }, [currentYear, currentMonth]);
-
-  const refreshRingsQuiet = useCallback(async () => {
-    try {
-      const data = await api("GET", `/analytics/matrix?year=${currentYear}&month=${currentMonth}`);
-      setMatrixData(data);
-    } catch (_) {}
-  }, [currentYear, currentMonth]);
-
-  // Load matrix whenever authed / month changes
-  // BUG 7 fix: loadMatrix is now stable (useCallback) so it's safe to include in deps.
-  useEffect(() => {
-    if (authed) loadMatrix();
-  }, [authed, currentYear, currentMonth, loadMatrix]);
-
-  // Auto-scroll the habit matrix to the far right when data loads
-  // so the current date column is immediately visible.
-  useEffect(() => {
-    if (matrixData && matrixScrollRef.current) {
-      matrixScrollRef.current.scrollLeft = matrixScrollRef.current.scrollWidth;
-    }
-  }, [matrixData]);
 
   const handleLogin = (token) => {
     setAuthed(true);
@@ -927,7 +1092,7 @@ function App() {
     return () => document.removeEventListener("click", handler);
   }, [isChatOpen]);
 
-  const topStreak = matrixData ? matrixData.habits.reduce((m, h) => Math.max(m, h.streak), 0) : 0;
+  const topStreak = 0; // Removed matrix data
 
   return (
     <>
@@ -941,7 +1106,8 @@ function App() {
             <span className="brand-icon">⚡</span>
             <span className="brand-name">CogniPlan</span>
           </div>
-          <div className="month-nav">
+
+          <div className="month-nav" style={{ marginLeft: 'auto' }}>
             <button id="btn-prev-month" className="nav-btn" aria-label="Previous month" onClick={handlePrevMonth}>‹</button>
             <h1 id="month-label" className="month-title">{MONTH_NAMES[currentMonth - 1]} {currentYear}</h1>
             <button id="btn-next-month" className="nav-btn" aria-label="Next month" onClick={handleNextMonth}>›</button>
@@ -962,66 +1128,21 @@ function App() {
 
       {/* MAIN LAYOUT */}
       <main className="dashboard">
-        {/* LEFT: Habit Grid */}
-        <section className="panel panel-grid" aria-label="Habit Grid">
-          <div className="panel-header">
-            <h2 className="panel-title">Habit Matrix</h2>
-            <p className="panel-subtitle">Click any cell to toggle completion</p>
-          </div>
-          <div ref={matrixScrollRef} className="grid-wrapper" id="grid-wrapper">
-            {matrixLoading ? (
-              <div className="grid-loading" id="grid-loading">
-                <div className="spinner" style={{ margin: "0 auto 12px" }} />
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontWeight: 600, color: "#f8fafc", fontSize: 15 }}>Waking up the cloud...</span>
-                  <span style={{ fontSize: 12.5, color: "#94a3b8" }}>{matrixLoadMsg}</span>
-                </div>
-              </div>
-            ) : (
-              <HabitGrid
-                data={matrixData}
-                currentYear={currentYear}
-                currentMonth={currentMonth}
-                onRefresh={(quiet) => quiet ? refreshRingsQuiet() : loadMatrix()}
-                showToast={showToast}
-              />
-            )}
-          </div>
-        </section>
-
-        {/* RIGHT: Analytics */}
-        <aside className="sidebar">
-          <section className="panel panel-analytics" aria-label="Progress Analytics">
-            <div className="panel-header">
-              <h2 className="panel-title">Progress Rings</h2>
-              <p className="panel-subtitle">This month's completion</p>
-            </div>
-            <ProgressRings habits={matrixData ? matrixData.habits : []} />
-          </section>
-        </aside>
+        <TaskCalendarView currentYear={currentYear} currentMonth={currentMonth} showToast={showToast} />
       </main>
 
       {/* MODALS */}
-      {showHabitModal && (
+      {(showHabitModal || editingHabit) && (
         <HabitModal
-          onClose={() => setShowHabitModal(false)}
-          onCreated={() => loadMatrix()}
+          initialData={editingHabit}
+          onClose={() => { setShowHabitModal(false); setEditingHabit(null); }}
+          onCreated={() => window.__loadTasks?.()}
           showToast={showToast}
         />
       )}
       {showProfileModal && (
         <ProfileModal onClose={() => setShowProfileModal(false)} showToast={showToast} />
       )}
-
-      {/* TODO FLOATING WIDGET */}
-      <div className="todo-widget-container">
-        <button id="todo-toggle-btn" title="Open Todos"
-          onClick={() => setIsTodoOpen((o) => !o)}>
-          <img src="./icons/icons8-notes-48.png" alt="Todos" width="28" height="28"
-            draggable="false" style={{ pointerEvents: "none", borderRadius: 6 }} />
-        </button>
-      </div>
-      <TodoWindow isOpen={isTodoOpen} onClose={() => setIsTodoOpen(false)} showToast={showToast} />
 
       {/* AI CHAT FLOATING WIDGET */}
       <div className="chat-widget-container">
@@ -1034,7 +1155,7 @@ function App() {
       <ChatWindow
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
-        onRefreshHabits={() => loadMatrix()}
+        onRefreshHabits={() => window.__loadTasks?.()}
       />
 
       {/* TOAST */}

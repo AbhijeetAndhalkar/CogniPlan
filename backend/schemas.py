@@ -5,28 +5,31 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-# ── Todo Schemas ──────────────────────────────────────────────────────────────
+# ── Task Schemas ──────────────────────────────────────────────────────────────
 
 # The "Create" schemas are for INCOMING data (Frontend -> Backend).
-# When the user creates a Todo, they only need to provide a title. 
+# When the user creates a Task, they only need to provide a title. 
 # The database will automatically handle the ID and the timestamp later.
-class TodoCreate(BaseModel):
+class TaskCreate(BaseModel):
     title: str
+    due_date: Optional[datetime] = None
 
 # The "Update" schema uses 'Optional'. 
 # This means the frontend can send just a new title, OR just a new status, 
 # and it won't crash if it doesn't send both.
-class TodoUpdate(BaseModel):
+class TaskUpdate(BaseModel):
     is_completed: Optional[bool] = None
     title: Optional[str] = None
+    due_date: Optional[datetime] = None
 
 # The "Out" schemas are for OUTGOING data (Backend -> Frontend).
 # When we send data back to React, we include everything: ID, title, status, and time.
-class TodoOut(BaseModel):
+class TaskOut(BaseModel):
     id: int
     title: str
     is_completed: bool
     created_at: datetime
+    due_date: Optional[datetime] = None
 
     # This is a crucial FastAPI setting! 
     # It tells Pydantic to read data directly from SQLAlchemy database objects 
@@ -34,7 +37,7 @@ class TodoOut(BaseModel):
     model_config = {"from_attributes": True}
 
 # We just create an alias here so it's easier to read in our main.py routes.
-TodoResponse = TodoOut
+TaskResponse = TaskOut
 
 
 # ── Habit Schemas ─────────────────────────────────────────────────────────────
@@ -46,6 +49,15 @@ class HabitCreate(BaseModel):
     title: str
     frequency: str = "daily"
     color_theme: str = "#6366f1"
+    description: Optional[str] = None
+    reminder_time: Optional[str] = None
+
+class HabitUpdate(BaseModel):
+    title: Optional[str] = None
+    frequency: Optional[str] = None
+    color_theme: Optional[str] = None
+    description: Optional[str] = None
+    reminder_time: Optional[str] = None
 
 # What we send back to the frontend when it asks for a list of habits.
 class HabitOut(BaseModel):
@@ -53,6 +65,8 @@ class HabitOut(BaseModel):
     title: str
     frequency: str
     color_theme: str
+    description: Optional[str] = None
+    reminder_time: Optional[str] = None
     is_active: bool
     created_at: datetime
 

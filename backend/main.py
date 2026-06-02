@@ -85,48 +85,62 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(secu
 
 
 # ==========================================
-# 1. TODO ENDPOINTS (One-off Tasks)
+# 1. TASK ENDPOINTS (One-off Tasks)
 # ==========================================
 
-@app.post("/todos/", response_model=schemas.TodoResponse)
-def create_todo(todo: schemas.TodoCreate, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+@app.post("/tasks/", response_model=schemas.TaskResponse)
+def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
     # Generate a semantic embedding so this task is searchable by meaning later
-    vector = agent.embed_model.encode(todo.title).tolist()
-    db_todo = models.Todo(**todo.model_dump(), user_id=current_user_id, embedding=vector)
-    db.add(db_todo)
+    vector = agent.embed_model.encode(task.title).tolist()
+    db_task = models.Task(**task.model_dump(), user_id=current_user_id, embedding=vector)
+    db.add(db_task)
     db.commit()
-    db.refresh(db_todo)
-    return db_todo
+    db.refresh(db_task)
+    return db_task
 
 
-@app.get("/todos/", response_model=list[schemas.TodoResponse])
-def get_todos(db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
-    return db.query(models.Todo).filter(models.Todo.user_id == current_user_id).all()  # Fetch all todos from database
+@app.get("/tasks/", response_model=list[schemas.TaskResponse])
+def get_tasks(db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    return db.query(models.Task).filter(models.Task.user_id == current_user_id).all()  # Fetch all tasks from database
 
 
-@app.put("/todos/{todo_id}/toggle", response_model=schemas.TodoResponse)
-def toggle_todo(todo_id: int, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
-    todo = db.query(models.Todo).filter(models.Todo.id == todo_id, models.Todo.user_id == current_user_id).first()  # Find todo by ID
-    if not todo:
-        raise HTTPException(status_code=404, detail="Todo not found")
+@app.put("/tasks/{task_id}/toggle", response_model=schemas.TaskResponse)
+def toggle_task(task_id: int, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    task = db.query(models.Task).filter(models.Task.id == task_id, models.Task.user_id == current_user_id).first()  # Find task by ID
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
 
-    todo.is_completed = not todo.is_completed  # Toggle completion status
+    task.is_completed = not task.is_completed  # Toggle completion status
     db.commit()
-    db.refresh(todo)
-    return todo
+    db.refresh(task)
+    return task
+
+@app.put("/tasks/{task_id}", response_model=schemas.TaskResponse)
+def update_task(task_id: int, task_update: schemas.TaskUpdate, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    task = db.query(models.Task).filter(models.Task.id == task_id, models.Task.user_id == current_user_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    update_data = task_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(task, key, value)
+        
+    db.commit()
+    db.refresh(task)
+    return task
 
 
-@app.delete("/todos/{todo_id}")
-def delete_todo(todo_id: int, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
-    todo = db.query(models.Todo).filter(models.Todo.id == todo_id, models.Todo.user_id == current_user_id).first()  # Find todo
+@app.delete("/tasks/{task_id}")
+def delete_task(task_id: int, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    task = db.query(models.Task).filter(models.Task.id == task_id, models.Task.user_id == current_user_id).first()  # Find task
 
-    if not todo:
-        raise HTTPException(status_code=404, detail="Todo not found")
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
 
-    db.delete(todo)  # Delete from DB
+    db.delete(task)  # Delete from DB
     db.commit()
 
-    return {"message": f"Todo {todo_id} deleted successfully"}
+    return {"message": f"Task {task_id} deleted successfully"}
 
 
 # ==========================================
@@ -145,6 +159,20 @@ def create_habit(habit: schemas.HabitCreate, db: Session = Depends(get_db), curr
 @app.get("/habits/", response_model=list[schemas.HabitResponse])
 def get_habits(db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
     return db.query(models.Habit).filter(models.Habit.user_id == current_user_id).all()  # Fetch all habits
+
+@app.put("/habits/{habit_id}", response_model=schemas.HabitResponse)
+def update_habit(habit_id: int, habit_update: schemas.HabitUpdate, db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    habit = db.query(models.Habit).filter(models.Habit.id == habit_id, models.Habit.user_id == current_user_id).first()
+    if not habit:
+        raise HTTPException(status_code=404, detail="Habit not found")
+    
+    update_data = habit_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(habit, key, value)
+        
+    db.commit()
+    db.refresh(habit)
+    return habit
 
 
 @app.delete("/habits/{habit_id}")
@@ -288,6 +316,65 @@ def get_matrix(
         "habits": habit_rows,
     }
 
+
+# ==========================================
+# 4.5 ANALYTICS SIDEBAR
+# ==========================================
+
+@app.get("/api/analytics/sidebar")
+def get_sidebar_analytics(db: Session = Depends(get_db), current_user_id: str = Depends(get_current_user_id)):
+    from datetime import datetime, timedelta
+
+    today = datetime.utcnow().date()
+    # Execution: Today's habits and tasks completion %
+    tasks = db.query(models.Task).filter(models.Task.user_id == current_user_id).all()
+    tasks_today = [t for t in tasks if (t.due_date and t.due_date.date() == today) or (not t.due_date and t.created_at.date() == today)]
+    tasks_completed = sum(1 for t in tasks_today if t.is_completed)
+    tasks_pct = int((tasks_completed / len(tasks_today) * 100)) if tasks_today else 0
+
+    habits = db.query(models.Habit).filter(models.Habit.user_id == current_user_id, models.Habit.is_active == True).all()
+    habit_logs_today = db.query(models.HabitLog).filter(models.HabitLog.user_id == current_user_id, models.HabitLog.date == today).all()
+    logged_habit_ids = {log.habit_id for log in habit_logs_today if log.status}
+    habits_completed = sum(1 for h in habits if h.id in logged_habit_ids)
+    habits_pct = int((habits_completed / len(habits) * 100)) if habits else 0
+
+    # Consistency: 30 days
+    start_date = today - timedelta(days=29)
+    consistency = []
+    all_logs = db.query(models.HabitLog).filter(models.HabitLog.user_id == current_user_id, models.HabitLog.date >= start_date).all()
+    
+    for i in range(30):
+        d = start_date + timedelta(days=i)
+        has_log = any(log.date == d and log.status for log in all_logs)
+        has_task = any(t.is_completed and ((t.due_date and t.due_date.date() == d) or (not t.due_date and t.created_at.date() == d)) for t in tasks)
+        consistency.append(bool(has_log or has_task))
+
+    # Focus Allocation
+    coding_kws = ["code", "dev", "bug", "feature", "build", "dsa", "leetcode", "react", "api"]
+    prep_kws = ["interview", "prep", "study", "read", "apply", "resume"]
+    break_kws = ["break", "rest", "lunch", "walk", "gym", "workout"]
+    
+    alloc_counts = {"coding": 0, "prep": 0, "break": 0}
+    for t in tasks:
+        title = t.title.lower()
+        if any(kw in title for kw in break_kws): alloc_counts["break"] += 1
+        elif any(kw in title for kw in prep_kws): alloc_counts["prep"] += 1
+        elif any(kw in title for kw in coding_kws): alloc_counts["coding"] += 1
+        
+    mapped_total = sum(alloc_counts.values())
+    if mapped_total > 0:
+        coding_pct = int(alloc_counts["coding"] / mapped_total * 100)
+        prep_pct = int(alloc_counts["prep"] / mapped_total * 100)
+        break_pct = 100 - coding_pct - prep_pct
+        allocation = {"coding": coding_pct, "prep": prep_pct, "break": break_pct}
+    else:
+        allocation = {"coding": 60, "prep": 25, "break": 15}
+
+    return {
+        "execution": {"habits": habits_pct, "tasks": tasks_pct},
+        "consistency": consistency,
+        "allocation": allocation
+    }
 
 # ==========================================
 # 5. AI INTELLIGENCE â€” LangGraph ReAct Agent
