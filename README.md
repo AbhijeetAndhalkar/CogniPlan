@@ -1,6 +1,6 @@
-# ⚡ FlowBoard (CogniPlan) – AI-Powered Productivity Dashboard
+# ⚡CogniPlan – AI-Powered Productivity Dashboard
 
-FlowBoard (CogniPlan) is a full-stack productivity app that combines **habit tracking**, **todo management**, and an **AI chat assistant** into a single premium dark-themed dashboard. The backend and UI run locally, while user authentication and data are securely synced to the cloud via Supabase (PostgreSQL).
+ CogniPlan is a full-stack productivity app that combines **habit tracking**, **todo management**, and an **AI chat assistant** into a single premium dark-themed dashboard. The backend and UI run locally, while user authentication and data are securely synced to the cloud via Supabase (PostgreSQL).
 
 ---
 
